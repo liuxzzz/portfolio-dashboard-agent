@@ -34,11 +34,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 11.9.0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -48,23 +48,22 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  publish-api:
+  publish-and-deploy-api:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: verify
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.image.outputs.repository }}
+    environment: production
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: image
         run: echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}/api" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: apps/api/Dockerfile
@@ -74,14 +73,6 @@ jobs:
             ${{ steps.image.outputs.repository }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  deploy-production:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: publish-api
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
       - name: Configure SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -96,15 +87,22 @@ jobs:
         run: |
           scp -i ~/.ssh/deploy_key deploy/compose.prod.yaml deploy/deploy.sh \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/maomao-youshu/"
-      - name: Authenticate registry and deploy
+      - name: Transfer image to ECS
         env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE_REPOSITORY: ${{ needs.publish-api.outputs.image }}
+          IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/deploy_key \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "docker login ghcr.io --username '${{ github.actor }}' --password-stdin"
+          set -o pipefail
+          docker pull "$IMAGE_REPOSITORY:$IMAGE_TAG"
+          docker save "$IMAGE_REPOSITORY:$IMAGE_TAG" | gzip -1 | \
+            ssh -i ~/.ssh/deploy_key \
+              "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+              'gzip -d | docker load'
+      - name: Deploy and verify
+        env:
+          IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
           ssh -i ~/.ssh/deploy_key \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            "chmod 750 /opt/maomao-youshu/deploy.sh && /opt/maomao-youshu/deploy.sh '$IMAGE_REPOSITORY' '$IMAGE_TAG'"
+            "chmod 750 /opt/maomao-youshu/deploy.sh && /opt/maomao-youshu/deploy.sh '$IMAGE_REPOSITORY' '$IMAGE_TAG' --skip-pull"

@@ -6,11 +6,17 @@ COMPOSE_FILE="$DEPLOY_DIR/compose.prod.yaml"
 ENV_FILE="$DEPLOY_DIR/.env"
 IMAGE_REPOSITORY="${1:-}"
 NEW_TAG="${2:-}"
+PULL_MODE="${3:-pull}"
 CURRENT_TAG_FILE="$DEPLOY_DIR/.current-image-tag"
 BACKUP_DIR="$DEPLOY_DIR/backups"
 
 if [[ -z "$IMAGE_REPOSITORY" || -z "$NEW_TAG" ]]; then
-  echo "usage: deploy.sh <image-repository> <image-tag>" >&2
+  echo "usage: deploy.sh <image-repository> <image-tag> [--skip-pull]" >&2
+  exit 2
+fi
+
+if [[ "$PULL_MODE" != "pull" && "$PULL_MODE" != "--skip-pull" ]]; then
+  echo "invalid pull mode" >&2
   exit 2
 fi
 
@@ -45,7 +51,9 @@ if [[ -f "$CURRENT_TAG_FILE" ]]; then
   PREVIOUS_TAG="$(<"$CURRENT_TAG_FILE")"
 fi
 
-"${COMPOSE[@]}" pull api migrate
+if [[ "$PULL_MODE" == "pull" ]]; then
+  "${COMPOSE[@]}" pull api migrate
+fi
 "${COMPOSE[@]}" up --detach postgres
 
 if "${COMPOSE[@]}" ps --status running --services | grep -qx postgres; then
@@ -85,4 +93,3 @@ if [[ -n "$PREVIOUS_TAG" && "$PREVIOUS_TAG" != "$NEW_TAG" ]]; then
 fi
 
 exit 1
-
