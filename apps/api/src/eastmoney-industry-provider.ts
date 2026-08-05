@@ -27,7 +27,7 @@ const eastmoneyDataResponseSchema = z.object({
 
 const eastmoneySearchResponseSchema = z.object({
   QuotationCodeTable: z.object({
-    Data: z.array(z.record(z.string(), z.unknown())),
+    Data: z.array(z.record(z.string(), z.unknown())).nullable(),
   }),
 });
 
@@ -418,7 +418,7 @@ export class EastmoneyIndustryProvider implements IndustryProvider {
       `行业搜索 ${name}`,
     );
     const parsed = eastmoneySearchResponseSchema.parse(await response.json());
-    for (const record of parsed.QuotationCodeTable.Data) {
+    for (const record of parsed.QuotationCodeTable.Data ?? []) {
       const code = text(record.Code);
       const resultName = text(record.Name);
       const market = text(record.MktNum);
@@ -490,15 +490,20 @@ export class EastmoneyIndustryProvider implements IndustryProvider {
   ) {
     const url = new URL(endpoint);
     url.search = new URLSearchParams(params).toString();
-    const response = await this.fetchImplementation(url, {
-      headers: {
-        Accept: "application/json",
-        Referer: "https://quote.eastmoney.com/",
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-      },
-      signal: AbortSignal.timeout(this.timeoutMs),
-    });
+    let response: Response;
+    try {
+      response = await this.fetchImplementation(url, {
+        headers: {
+          Accept: "application/json",
+          Referer: "https://quote.eastmoney.com/",
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        },
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch (error) {
+      throw new Error(`东方财富${label}请求失败：网络异常`, { cause: error });
+    }
     if (!response.ok) {
       throw new Error(`东方财富${label}请求失败：HTTP ${response.status}`);
     }

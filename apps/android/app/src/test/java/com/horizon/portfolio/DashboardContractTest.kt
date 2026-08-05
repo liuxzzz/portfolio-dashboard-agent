@@ -15,6 +15,8 @@ class DashboardContractTest {
 
         assertEquals("snapshot-contract", payload.snapshot.id)
         assertEquals("600000", payload.snapshot.positions.single().symbol)
+        assertEquals("eastmoney", payload.industryData?.source)
+        assertEquals(0.0123, payload.industries.single().dayRate ?: 0.0, 0.000001)
         assertEquals("attention", payload.latestAgentRun?.insights?.single()?.severity)
         assertNotNull(payload.latestAgentRun?.insights?.single()?.evidence?.single())
     }
@@ -54,7 +56,14 @@ class DashboardContractTest {
                   "holdingDays": 100
                 }]
               },
-              "industries": [{"name":"金融","value":80000,"weight":0.8,"color":"#172033"}],
+              "industries": [{"name":"金融","code":"BK0475","value":80000,"weight":0.8,"dayRate":0.0123,"color":"#172033"}],
+              "industryData": {
+                "taxonomy": "EASTMONEY",
+                "source": "eastmoney",
+                "status": "fresh",
+                "syncedAt": "2026-08-05T09:00:00.000Z",
+                "message": null
+              },
               "history": [{"date":"2026-08-05","totalAsset":100000,"positionRate":0.8}],
               "latestAgentRun": {
                 "id": "run-contract",

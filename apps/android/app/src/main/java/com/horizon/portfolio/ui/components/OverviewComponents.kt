@@ -28,11 +28,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizon.portfolio.R
 import com.horizon.portfolio.domain.model.IndustryAllocation
+import com.horizon.portfolio.domain.model.IndustryDataStatus
 import com.horizon.portfolio.domain.model.PortfolioHistoryPoint
 import com.horizon.portfolio.domain.model.PositionSnapshot
 import com.horizon.portfolio.ui.theme.Accent
@@ -645,16 +648,20 @@ fun PositionMeterCard(
 @Composable
 fun IndustryAllocationCard(
     allocations: List<IndustryAllocation>,
+    dataStatus: IndustryDataStatus?,
     animationKey: String,
     playAnimation: Boolean,
 ) {
     val slices = remember(allocations) { allocations.toSlices() }
+    val sortedAllocations = remember(allocations) { allocations.sortedByDescending { it.weight } }
+    var showAllIndustries by rememberSaveable(animationKey) { mutableStateOf(false) }
+    val visibleAllocations = if (showAllIndustries) sortedAllocations else sortedAllocations.take(5)
 
     OverviewSectionCard {
         OverviewSectionHeader(
             iconRes = R.drawable.ic_pie_chart_rounded,
-            title = "行业分布",
-            subtitle = "股票资产构成",
+            title = "行业分布 · ${allocations.size}",
+            subtitle = industryDataSubtitle(dataStatus),
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 22.dp),
@@ -664,6 +671,7 @@ fun IndustryAllocationCard(
                 slices = slices,
                 animationKey = animationKey,
                 playAnimation = playAnimation,
+                industryCount = allocations.size,
                 modifier = Modifier.size(132.dp),
             )
             Spacer(Modifier.width(20.dp))
@@ -674,6 +682,46 @@ fun IndustryAllocationCard(
                 slices.forEach { slice -> AllocationLegendRow(slice) }
             }
         }
+        if (visibleAllocations.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 20.dp)
+                    .background(Canvas, RoundedCornerShape(18.dp))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            ) {
+                visibleAllocations.forEachIndexed { index, allocation ->
+                    if (index > 0) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(Border.copy(alpha = 0.75f)),
+                        )
+                    }
+                    IndustryDetailRow(allocation)
+                }
+            }
+        }
+        if (sortedAllocations.size > 5) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                TextButton(onClick = { showAllIndustries = !showAllIndustries }) {
+                    Text(
+                        text = if (showAllIndustries) {
+                            "收起行业明细"
+                        } else {
+                            "查看全部 ${sortedAllocations.size} 个行业"
+                        },
+                        color = Accent,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -682,6 +730,7 @@ private fun DonutChart(
     slices: List<AllocationSlice>,
     animationKey: String,
     playAnimation: Boolean,
+    industryCount: Int,
     modifier: Modifier = Modifier,
 ) {
     val progress = remember(animationKey, playAnimation) {
@@ -728,7 +777,7 @@ private fun DonutChart(
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = slices.size.toString(),
+                text = industryCount.toString(),
                 color = Ink,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -736,6 +785,63 @@ private fun DonutChart(
             Text("行业", color = Muted, fontSize = 10.sp)
         }
     }
+}
+
+@Composable
+private fun IndustryDetailRow(allocation: IndustryAllocation) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(9.dp).background(parseColor(allocation.color), CircleShape))
+        Column(modifier = Modifier.weight(1f).padding(start = 9.dp)) {
+            Text(
+                text = allocation.name,
+                color = Ink,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = formatCurrency(allocation.value),
+                color = Muted,
+                fontSize = 9.sp,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = formatPercent(allocation.weight),
+                color = Ink,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.ExtraBold,
+            )
+            Text(
+                text = allocation.dayRate?.let { formatPercent(it, true) } ?: "暂无行情",
+                color = allocation.dayRate?.let { if (it >= 0) Positive else Negative } ?: Muted,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+    }
+}
+
+private fun industryDataSubtitle(status: IndustryDataStatus?): String {
+    if (status == null) return "股票资产构成"
+    val source = when (status.source) {
+        "eastmoney" -> "东方财富"
+        "tushare" -> "Tushare 申万"
+        else -> status.source
+    }
+    val freshness = when (status.status) {
+        "fresh" -> "数据已同步"
+        "stale" -> "缓存数据"
+        "unavailable" -> "暂时不可用"
+        else -> "数据源未启用"
+    }
+    return "$source · $freshness"
 }
 
 @Composable

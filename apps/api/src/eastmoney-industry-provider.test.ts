@@ -27,7 +27,7 @@ test("normalizes A-share, HK and ETF industries from free Eastmoney data", async
                   Classify: "BK",
                 },
               ]
-            : [],
+            : null,
         },
       });
     }
