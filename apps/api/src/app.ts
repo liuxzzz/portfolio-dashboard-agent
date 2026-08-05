@@ -22,6 +22,7 @@ export interface AppOptions {
   agentService?: PortfolioAgentService;
   industryService?: PortfolioIndustryService;
   ingestSharedSecret?: string;
+  accessSharedSecret?: string;
   clientOrigin?: string;
   now?: () => Date;
 }
@@ -44,7 +45,7 @@ function secretsMatch(received: string | undefined, expected: string | undefined
   );
 }
 
-function readIngestSecret(authorization: string | undefined) {
+function readBearerSecret(authorization: string | undefined) {
   const prefix = "Bearer ";
   return authorization?.startsWith(prefix)
     ? authorization.slice(prefix.length)
@@ -59,6 +60,8 @@ export function createApp(options: AppOptions = {}) {
   const now = options.now ?? (() => new Date());
   const expectedSecret =
     options.ingestSharedSecret ?? process.env.INGEST_SHARED_SECRET;
+  const expectedAccessSecret =
+    options.accessSharedSecret ?? process.env.API_ACCESS_SECRET;
   const app = new Hono();
 
   app.use(
@@ -86,12 +89,29 @@ export function createApp(options: AppOptions = {}) {
     }
   });
 
+  app.use("/v1/*", async (context, next) => {
+    const path = context.req.path;
+    if (path === "/v1/snapshots" || path === "/v1/industries/refresh") {
+      return next();
+    }
+    if (!expectedAccessSecret) {
+      return context.json({ error: "access_not_configured" }, 503);
+    }
+    const receivedSecret = readBearerSecret(
+      context.req.header("authorization"),
+    );
+    if (!secretsMatch(receivedSecret, expectedAccessSecret)) {
+      return context.json({ error: "unauthorized" }, 401);
+    }
+    return next();
+  });
+
   app.post("/v1/snapshots", async (context) => {
     if (!expectedSecret) {
       return context.json({ error: "ingest_not_configured" }, 503);
     }
 
-    const receivedSecret = readIngestSecret(
+    const receivedSecret = readBearerSecret(
       context.req.header("authorization"),
     );
     if (!secretsMatch(receivedSecret, expectedSecret)) {
@@ -223,7 +243,7 @@ export function createApp(options: AppOptions = {}) {
     if (!expectedSecret) {
       return context.json({ error: "ingest_not_configured" }, 503);
     }
-    const receivedSecret = readIngestSecret(
+    const receivedSecret = readBearerSecret(
       context.req.header("authorization"),
     );
     if (!secretsMatch(receivedSecret, expectedSecret)) {

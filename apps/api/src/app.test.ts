@@ -41,8 +41,10 @@ const snapshot: PortfolioSnapshot = {
 test("accepts an authenticated snapshot and serves a dashboard", async () => {
   const app = createApp({
     ingestSharedSecret: "test-secret",
+    accessSharedSecret: "test-access-secret",
     now: () => new Date("2026-08-05T09:00:00.000Z"),
   });
+  const accessHeaders = { Authorization: "Bearer test-access-secret" };
 
   const unauthorized = await app.request("/v1/snapshots", {
     method: "POST",
@@ -74,7 +76,12 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
   const retriedPayload = (await retried.json()) as { agentRunId: string };
   assert.equal(retriedPayload.agentRunId, acceptedPayload.agentRunId);
 
-  const dashboard = await app.request("/v1/dashboard");
+  const unauthorizedDashboard = await app.request("/v1/dashboard");
+  assert.equal(unauthorizedDashboard.status, 401);
+
+  const dashboard = await app.request("/v1/dashboard", {
+    headers: accessHeaders,
+  });
   assert.equal(dashboard.status, 200);
   const payload = (await dashboard.json()) as {
     snapshot: { id: string; positions: Array<{ industry: string }> };
@@ -101,12 +108,17 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
     "/v1/positions/SH/600000/main-industry",
     {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        ...accessHeaders,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ mainIndustryId: "banking" }),
     },
   );
   assert.equal(customized.status, 200);
-  const customizedDashboard = await app.request("/v1/dashboard");
+  const customizedDashboard = await app.request("/v1/dashboard", {
+    headers: accessHeaders,
+  });
   const customizedPayload = (await customizedDashboard.json()) as {
     snapshot: {
       positions: Array<{
@@ -130,17 +142,22 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
 
   const restored = await app.request(
     "/v1/positions/SH/600000/main-industry",
-    { method: "DELETE" },
+    { method: "DELETE", headers: accessHeaders },
   );
   assert.equal(restored.status, 200);
-  const restoredDashboard = await app.request("/v1/dashboard");
+  const restoredDashboard = await app.request("/v1/dashboard", {
+    headers: accessHeaders,
+  });
   const restoredPayload = (await restoredDashboard.json()) as {
     snapshot: { positions: Array<{ industry: string; industryCustomized: boolean }> };
   };
   assert.equal(restoredPayload.snapshot.positions[0]?.industry, "金融");
   assert.equal(restoredPayload.snapshot.positions[0]?.industryCustomized, false);
 
-  const rerun = await app.request("/v1/agent/runs", { method: "POST" });
+  const rerun = await app.request("/v1/agent/runs", {
+    method: "POST",
+    headers: accessHeaders,
+  });
   assert.equal(rerun.status, 201);
   const rerunPayload = (await rerun.json()) as {
     snapshotId: string;
@@ -163,7 +180,13 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
 });
 
 test("manual Agent run requires an existing snapshot", async () => {
-  const app = createApp({ ingestSharedSecret: "test-secret" });
-  const response = await app.request("/v1/agent/runs", { method: "POST" });
+  const app = createApp({
+    ingestSharedSecret: "test-secret",
+    accessSharedSecret: "test-access-secret",
+  });
+  const response = await app.request("/v1/agent/runs", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-access-secret" },
+  });
   assert.equal(response.status, 404);
 });

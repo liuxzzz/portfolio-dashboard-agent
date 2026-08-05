@@ -38,6 +38,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-portfolio}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-portfolio}?schema=public
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-https://invalid.local}
       INGEST_SHARED_SECRET: ${INGEST_SHARED_SECRET:?INGEST_SHARED_SECRET is required}
+      API_ACCESS_SECRET: ${API_ACCESS_SECRET:?API_ACCESS_SECRET is required}
       INDUSTRY_PROVIDER: ${INDUSTRY_PROVIDER:-eastmoney}
       TUSHARE_TOKEN: ${TUSHARE_TOKEN:-}
       TUSHARE_API_URL: ${TUSHARE_API_URL:-}
@@ -86,4 +87,3 @@ volumes:
 
 networks:
   backend:
-

@@ -14,6 +14,7 @@ import kotlinx.serialization.json.Json
 
 class PortfolioApiClient(
     baseUrl: String,
+    private val accessToken: String,
     private val json: Json,
 ) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
@@ -57,6 +58,9 @@ class PortfolioApiClient(
             connection.connectTimeout = 5_000
             connection.readTimeout = 10_000
             connection.setRequestProperty("Accept", "application/json")
+            if (accessToken.isNotBlank()) {
+                connection.setRequestProperty("Authorization", "Bearer $accessToken")
+            }
             if (body != null || method == "POST") {
                 connection.doOutput = true
                 val bytes = body?.toByteArray(StandardCharsets.UTF_8) ?: byteArrayOf()

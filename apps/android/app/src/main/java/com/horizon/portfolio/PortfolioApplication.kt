@@ -23,7 +23,11 @@ class AppContainer(application: Application) {
         explicitNulls = false
     }
     private val database = PortfolioDatabase.create(application)
-    private val api = PortfolioApiClient(BuildConfig.API_BASE_URL, json)
+    private val api = PortfolioApiClient(
+        baseUrl = BuildConfig.API_BASE_URL,
+        accessToken = BuildConfig.API_TOKEN,
+        json = json,
+    )
 
     val portfolioRepository: PortfolioRepository = DefaultPortfolioRepository(
         api = api,
