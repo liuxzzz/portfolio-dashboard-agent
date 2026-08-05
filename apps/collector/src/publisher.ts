@@ -17,7 +17,10 @@ export async function publishSnapshot(
   },
 ) {
   const fetcher = options.fetch ?? globalThis.fetch;
-  const response = await fetcher(new URL("/v1/snapshots", options.apiUrl), {
+  const apiBaseUrl = options.apiUrl.endsWith("/")
+    ? options.apiUrl
+    : `${options.apiUrl}/`;
+  const response = await fetcher(new URL("v1/snapshots", apiBaseUrl), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${options.ingestSharedSecret}`,

@@ -194,7 +194,7 @@ export function createSnapshotFromHoldingExport(
     "仓位占比",
     calculatedPositionRate,
     summarizedPositionRate,
-    RATE_TOLERANCE,
+    RATE_TOLERANCE * Math.max(1, exported.positions.length),
   );
   assertReconciled(
     "当日盈亏",

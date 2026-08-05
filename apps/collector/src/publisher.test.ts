@@ -36,12 +36,16 @@ test("publishes only the standardized snapshot with bearer authentication", asyn
   } satisfies PortfolioSnapshot;
 
   const result = await publishSnapshot(snapshot, {
-    apiUrl: "http://127.0.0.1:4000",
+    apiUrl: "https://60.205.90.12/maomao-api",
     ingestSharedSecret: "fictional-secret",
     fetch: fetcher,
   });
 
   assert.equal(result.accepted, true);
+  assert.equal(
+    capturedRequest?.url,
+    "https://60.205.90.12/maomao-api/v1/snapshots",
+  );
   assert.equal(capturedRequest?.headers.get("authorization"), "Bearer fictional-secret");
   assert.equal(capturedRequest?.headers.get("cookie"), null);
   assert.deepEqual(await capturedRequest?.json(), snapshot);

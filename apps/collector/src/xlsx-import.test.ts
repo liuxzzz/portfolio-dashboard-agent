@@ -85,6 +85,49 @@ test("rejects a summary that does not reconcile to position rows", () => {
   );
 });
 
+test("accepts accumulated rounding across exported position weights", () => {
+  const positionCount = 28;
+  const rows = Array.from({ length: positionCount }, (_, index) =>
+    row({
+      ...position,
+      symbol: String(index + 1).padStart(6, "0"),
+      portfolioWeight: 0.0357,
+    }),
+  );
+  const summary = Array<unknown>(headers.length).fill(null);
+  summary[0] = "汇总";
+  summary[2] = position.marketValue * positionCount;
+  summary[3] = (position.dayProfit ?? 0) * positionCount;
+  summary[4] = 0.01;
+  summary[16] = 1;
+
+  const snapshot = createSnapshotFromHoldingExport(
+    parseHoldingExportRows([headers, ...rows, summary]),
+    { capturedAt: new Date("2026-08-05T02:00:00.000Z") },
+  );
+
+  assert.equal(snapshot.positions.length, positionCount);
+  assert.equal(snapshot.positionRate, 1);
+});
+
+test("rejects a material difference in summarized position weight", () => {
+  const summary = Array<unknown>(headers.length).fill(null);
+  summary[0] = "汇总";
+  summary[2] = position.marketValue;
+  summary[3] = position.dayProfit;
+  summary[4] = 0.01;
+  summary[16] = 0.5;
+
+  assert.throws(
+    () =>
+      createSnapshotFromHoldingExport(
+        parseHoldingExportRows([headers, row(position), summary]),
+        { capturedAt: new Date("2026-08-05T02:00:00.000Z") },
+      ),
+    /仓位占比.*不一致/,
+  );
+});
+
 test("infers common mainland and Hong Kong market codes", () => {
   assert.equal(inferMarket("600000"), "SH");
   assert.equal(inferMarket("159001"), "SZ");
