@@ -6,6 +6,8 @@
 
 `GET /health`
 
+同时检查 API 进程与 PostgreSQL 连接。两者正常返回 `200`；数据库不可用返回 `503`。
+
 ## 提交快照
 
 `POST /v1/snapshots`
@@ -14,6 +16,8 @@
 - Body：符合 `portfolioSnapshotSchema` 的 JSON。
 - 成功：`202`，返回快照 ID 和同步生成的 Agent Run ID。
 - 未配置 Secret：`503`；鉴权失败：`401`；契约错误：`400`。
+- 同一快照可安全重试；内容一致时复用已保存快照和 Agent Run，不产生重复记录。
+- 相同快照 ID 但内容不同会被拒绝，历史记录不会被静默覆盖。
 
 这里接收的是 Collector 标准化后的持仓快照，不接收同花顺 Cookie。
 

@@ -8,13 +8,21 @@
     "node": ">=22"
   },
   "scripts": {
+    "postinstall": "pnpm --filter @portfolio/api run prisma:generate",
     "dev": "pnpm --parallel --filter './apps/*' dev",
     "build": "pnpm -r --if-present build",
     "build:web": "pnpm --filter @portfolio/client build:web",
     "build:ios": "pnpm --filter @portfolio/client build:ios",
     "build:android": "pnpm --filter @portfolio/client build:android",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm -r --if-present test"
+    "test": "pnpm -r --if-present test",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @portfolio/api run prisma:generate",
+    "db:migrate": "pnpm --filter @portfolio/api run db:migrate",
+    "db:deploy": "pnpm --filter @portfolio/api run db:deploy",
+    "db:status": "pnpm --filter @portfolio/api run db:status",
+    "db:studio": "pnpm --filter @portfolio/api run db:studio"
   },
   "devDependencies": {
     "@types/node": "26.1.2",

@@ -6,6 +6,7 @@ dist-web/
 dist-ios/
 dist-android/
 dist/
+apps/api/src/generated/prisma/
 coverage/
 work/
 *.log

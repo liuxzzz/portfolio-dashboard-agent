@@ -7,7 +7,7 @@ flowchart LR
     A["同花顺投资账本\n用户已登录会话"] --> B["本地 Collector\nCookie 不离开设备"]
     B --> C["字段标准化与校验"]
     C -->|"仅标准化快照"| D["Portfolio API"]
-    D --> E["不可变快照仓储"]
+    D --> E["PostgreSQL 18\nPrisma 不可变快照仓储"]
     E --> F["Agent Core\n规则与证据"]
     F --> D
     D --> G["Expo 通用客户端"]
@@ -33,7 +33,8 @@ flowchart LR
 - 使用共享契约校验采集器提交的数据与采集时间。
 - 写入接口要求独立的 Bearer Secret；读接口后续接入用户登录。
 - 保存不可变快照，并为行业分布、历史曲线与 Agent 结果提供查询。
-- 当前仓储是便于验证架构的内存实现，接口已抽象，可替换 PostgreSQL。
+- 生产入口使用 Prisma + PostgreSQL；数据库不可用时启动失败，健康检查返回不可用。
+- 同一快照重复提交是幂等操作；相同 ID 对应不同内容时拒绝覆盖。
 
 ### Agent Core
 
@@ -60,9 +61,9 @@ flowchart LR
 
 界面和 Agent 必须优先披露源数据过期，不能把旧数据描述为“今日最新持仓”。
 
-## 后续替换点
+## 后续演进点
 
-- `MemoryPortfolioRepository` → PostgreSQL/Drizzle 不可变快照仓储。
 - Collector 当前实现 → 每日调度、登录失效提醒与更多账户边界验证。
 - Bearer Secret → 用户登录、设备绑定和短期上传令牌。
 - 本地确定性规则 → 规则编排 + 模型解释 + 通知渠道。
+- 单机 PostgreSQL → 加密托管数据库、自动备份、恢复演练和保留策略。

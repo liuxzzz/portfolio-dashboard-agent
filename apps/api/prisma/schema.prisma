@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DataFreshness {
+  fresh
+  stale
+  unknown
+}
+
+enum AgentRunStatus {
+  queued
+  running
+  completed
+  failed
+}
+
+enum InsightSeverity {
+  info
+  attention
+  risk
+}
+
+enum InsightCategory {
+  freshness
+  concentration
+  cash
+  change
+  note
+}
+
+enum EvidenceKind {
+  snapshot
+  position
+  calculation
+  market
+}
+
+model Account {
+  id              String     @id @default(cuid())
+  source          String     @db.VarChar(32)
+  sourceAccountId String     @db.VarChar(255)
+  name            String     @db.VarChar(255)
+  currency        String     @default("CNY") @db.VarChar(16)
+  createdAt       DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @db.Timestamptz(3)
+  snapshots       Snapshot[]
+
+  @@unique([source, sourceAccountId])
+  @@index([updatedAt])
+  @@map("accounts")
+}
+
+model Snapshot {
+  id                    String        @id @db.VarChar(255)
+  accountId             String
+  schemaVersion         Int           @default(1)
+  sourceContractVersion String        @default("tzzb-v1") @db.VarChar(64)
+  calculationVersion    String        @default("1") @db.VarChar(32)
+  contentHash           String        @db.VarChar(64)
+  capturedAt            DateTime      @db.Timestamptz(3)
+  sourceSyncedAt        DateTime?     @db.Timestamptz(3)
+  freshness             DataFreshness
+  currency              String        @default("CNY") @db.VarChar(16)
+  totalAsset            Decimal       @db.Decimal(24, 8)
+  cash                  Decimal       @db.Decimal(24, 8)
+  stockMarketValue      Decimal       @db.Decimal(24, 8)
+  dayProfit             Decimal?      @db.Decimal(24, 8)
+  dayProfitRate         Decimal?      @db.Decimal(20, 12)
+  positionRate          Decimal?      @db.Decimal(20, 12)
+  ingestedAt            DateTime      @default(now()) @db.Timestamptz(3)
+  account               Account       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  positions             Position[]
+  agentRuns             AgentRun[]
+
+  @@unique([accountId, capturedAt])
+  @@index([accountId, capturedAt(sort: Desc)])
+  @@index([capturedAt(sort: Desc)])
+  @@map("snapshots")
+}
+
+model Position {
+  id                   String   @id @db.VarChar(512)
+  snapshotId           String
+  symbol               String   @db.VarChar(64)
+  name                 String   @db.VarChar(255)
+  market               String   @db.VarChar(32)
+  industry             String?  @db.VarChar(255)
+  quantity             Decimal  @db.Decimal(24, 8)
+  currentPrice         Decimal? @db.Decimal(24, 8)
+  unitCost             Decimal? @db.Decimal(24, 8)
+  marketValue          Decimal  @db.Decimal(24, 8)
+  portfolioWeight      Decimal? @db.Decimal(20, 12)
+  dayProfit            Decimal? @db.Decimal(24, 8)
+  dayProfitRate        Decimal? @db.Decimal(20, 12)
+  holdingProfit        Decimal? @db.Decimal(24, 8)
+  holdingProfitRate    Decimal? @db.Decimal(20, 12)
+  holdingDays          Int?
+  latestRate           Decimal? @db.Decimal(20, 12)
+  relatedSector        String?  @db.VarChar(255)
+  sectorRate           Decimal? @db.Decimal(20, 12)
+  combinationProfit    Decimal? @db.Decimal(24, 8)
+  combinationRate      Decimal? @db.Decimal(20, 12)
+  cumulativeProfit     Decimal? @db.Decimal(24, 8)
+  cumulativeProfitRate Decimal? @db.Decimal(20, 12)
+  weekProfit           Decimal? @db.Decimal(24, 8)
+  monthProfit          Decimal? @db.Decimal(24, 8)
+  yearProfit           Decimal? @db.Decimal(24, 8)
+  breakEvenRate        Decimal? @db.Decimal(20, 12)
+  oneMonthRate         Decimal? @db.Decimal(20, 12)
+  threeMonthRate       Decimal? @db.Decimal(20, 12)
+  sixMonthRate         Decimal? @db.Decimal(20, 12)
+  oneYearRate          Decimal? @db.Decimal(20, 12)
+  snapshot             Snapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, market, symbol])
+  @@index([snapshotId, marketValue(sort: Desc)])
+  @@index([symbol])
+  @@map("positions")
+}
+
+model AgentRun {
+  id          String         @id @db.VarChar(512)
+  snapshotId  String
+  status      AgentRunStatus
+  requestedAt DateTime       @db.Timestamptz(3)
+  completedAt DateTime?      @db.Timestamptz(3)
+  model       String?        @db.VarChar(255)
+  disclaimer  String         @db.Text
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+  snapshot    Snapshot       @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  insights    AgentInsight[]
+
+  @@index([snapshotId, requestedAt(sort: Desc)])
+  @@map("agent_runs")
+}
+
+model AgentInsight {
+  id              String          @id @db.VarChar(768)
+  runId           String
+  sourceInsightId String          @db.VarChar(512)
+  category        InsightCategory
+  severity        InsightSeverity
+  title           String          @db.VarChar(255)
+  summary         String          @db.Text
+  confidence      Decimal         @db.Decimal(5, 4)
+  createdAt       DateTime        @db.Timestamptz(3)
+  run             AgentRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  evidence        AgentEvidence[]
+
+  @@unique([runId, sourceInsightId])
+  @@index([runId])
+  @@map("agent_insights")
+}
+
+model AgentEvidence {
+  id          String       @id @db.VarChar(768)
+  insightId   String
+  kind        EvidenceKind
+  referenceId String       @db.VarChar(512)
+  label       String       @db.VarChar(512)
+  asOf        DateTime     @db.Timestamptz(3)
+  insight     AgentInsight @relation(fields: [insightId], references: [id], onDelete: Cascade)
+
+  @@index([insightId])
+  @@index([referenceId])
+  @@map("agent_evidence")
+}

@@ -4,23 +4,36 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "pnpm prisma:generate",
     "dev": "tsx watch src/index.ts",
+    "prestart": "pnpm prisma:generate",
     "start": "tsx src/index.ts",
+    "prebuild": "pnpm prisma:generate",
     "build": "tsc -p tsconfig.json",
+    "pretypecheck": "pnpm prisma:generate",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/**/*.test.ts"
+    "pretest": "pnpm prisma:generate",
+    "test": "tsx --test src/**/*.test.ts",
+    "prisma:generate": "prisma generate --config prisma.config.ts",
+    "db:migrate": "prisma migrate dev --config prisma.config.ts",
+    "db:deploy": "prisma migrate deploy --config prisma.config.ts",
+    "db:status": "prisma migrate status --config prisma.config.ts",
+    "db:studio": "prisma studio --config prisma.config.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.0",
     "@portfolio/agent-core": "workspace:*",
     "@portfolio/domain": "workspace:*",
-    "drizzle-orm": "0.45.2",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
     "hono": "4.13.0",
     "pg": "8.22.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "26.1.2",
+    "@types/pg": "8.20.3",
+    "prisma": "7.9.1",
     "tsx": "4.23.6",
     "typescript": "7.0.2"
   }

@@ -9,6 +9,7 @@
 - 统一数据契约：账户快照、持仓、行业分布、历史曲线、Agent 运行结果。
 - 证据优先 Agent：先用确定性规则检查数据新鲜度、集中度和现金缓冲。
 - 快照 API：鉴权接收快照，生成分析结果，并向客户端提供聚合看板。
+- 数据库：PostgreSQL 保存不可变账户快照、完整持仓、Agent 运行与证据链。
 - 本地采集器：复用隔离浏览器登录会话，串联账户、持仓、当日成交、资金变化和行情接口。
 - 演示模式：未配置 API 时使用完全虚构数据，不阻塞界面开发和验收。
 
@@ -20,7 +21,8 @@
 - Web / iOS / Android：Expo Router + React Native Web
 - 状态与请求：TanStack Query
 - 图表：React Native SVG
-- API：Hono + Zod
+- API：Hono + Zod + Prisma ORM
+- 数据库：PostgreSQL 18
 - Agent：独立的 evidence-first 规则核心，可在后续接入模型
 - 本地采集器：Node.js，在用户授权的登录会话中读取只读接口
 - CI：GitHub Actions
@@ -45,27 +47,42 @@ docs/
 
 ## 本地运行
 
-需要 Node.js 22+ 和 pnpm 11.9.0。
+需要 Node.js 22+、pnpm 11.9.0 和 Docker Desktop。
 
 ```bash
 pnpm install
+cp .env.example .env
+pnpm db:up
+pnpm db:deploy
+```
+
+在两个终端分别启动 API 和客户端：
+
+```bash
+pnpm --filter @portfolio/api dev
+```
+
+```bash
 pnpm --filter @portfolio/client dev
 ```
 
-Expo 启动后可在浏览器、iOS Simulator 或 Android Emulator 打开同一个应用。客户端未配置 API 时会明确显示“演示数据”。
-
-如需联调 API：
-
-```bash
-cp .env.example .env
-pnpm --filter @portfolio/api dev
-```
+本地 PostgreSQL 使用 `127.0.0.1:5433`，避免与电脑上常见的 5432 端口冲突。Expo 启动后可在浏览器、iOS Simulator 或 Android Emulator 打开同一个应用。客户端未配置 API 时会明确显示“演示数据”。
 
 然后在 `apps/client/.env` 设置：
 
 ```text
 EXPO_PUBLIC_API_URL=http://localhost:4000
 ```
+
+常用数据库操作：
+
+```bash
+pnpm db:status
+pnpm db:studio
+pnpm db:down
+```
+
+数据模型、迁移规则和生产环境注意事项见 `docs/database.md`。
 
 ## 本地采集
 
@@ -91,6 +108,7 @@ pnpm --filter @portfolio/collector run collect
 ```bash
 pnpm typecheck
 pnpm test
+TEST_DATABASE_URL='postgresql://portfolio:portfolio@127.0.0.1:5433/portfolio?schema=public' pnpm --filter @portfolio/api test
 pnpm build:web
 pnpm build:ios
 pnpm build:android
@@ -111,5 +129,5 @@ pnpm build:android
 
 1. 使用同一账户刚刚生成的新导出，完成真实响应与导出的逐值对账。
 2. 验证港股汇率、当日有买卖和非空清仓记录等边界情况。
-3. 将内存仓储替换为 PostgreSQL 不可变快照。
-4. 加入用户登录、设备绑定、加密与每日调度。
+3. 加入用户登录、设备绑定、字段级加密、备份与每日调度。
+4. 增加快照变化分析、通知渠道和数据保留策略。

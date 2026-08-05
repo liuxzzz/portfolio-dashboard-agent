@@ -1,27 +1,72 @@
+import { createHash } from "node:crypto";
 import type {
   AgentRun,
   PortfolioHistoryPoint,
   PortfolioSnapshot,
 } from "@portfolio/domain";
 
+export type SnapshotSaveResult = "created" | "existing";
+
 export interface PortfolioRepository {
-  saveSnapshot(snapshot: PortfolioSnapshot): Promise<void>;
+  healthCheck(): Promise<void>;
+  saveSnapshot(snapshot: PortfolioSnapshot): Promise<SnapshotSaveResult>;
   saveAgentRun(run: AgentRun): Promise<void>;
   getLatestSnapshot(accountId?: string): Promise<PortfolioSnapshot | null>;
   getLatestAgentRun(snapshotId: string): Promise<AgentRun | null>;
   getHistory(accountId: string, limit: number): Promise<PortfolioHistoryPoint[]>;
 }
 
+export function snapshotContentHash(snapshot: PortfolioSnapshot) {
+  const canonical = {
+    ...snapshot,
+    positions: snapshot.positions
+      .map((position) => ({
+        ...position,
+        latestRate: position.latestRate ?? null,
+        relatedSector: position.relatedSector ?? null,
+        sectorRate: position.sectorRate ?? null,
+        combinationProfit: position.combinationProfit ?? null,
+        combinationRate: position.combinationRate ?? null,
+        cumulativeProfit: position.cumulativeProfit ?? null,
+        cumulativeProfitRate: position.cumulativeProfitRate ?? null,
+        weekProfit: position.weekProfit ?? null,
+        monthProfit: position.monthProfit ?? null,
+        yearProfit: position.yearProfit ?? null,
+        breakEvenRate: position.breakEvenRate ?? null,
+        oneMonthRate: position.oneMonthRate ?? null,
+        threeMonthRate: position.threeMonthRate ?? null,
+        sixMonthRate: position.sixMonthRate ?? null,
+        oneYearRate: position.oneYearRate ?? null,
+      }))
+      .sort((left, right) =>
+        `${left.market}:${left.symbol}`.localeCompare(
+          `${right.market}:${right.symbol}`,
+        ),
+      ),
+  };
+  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
+
 export class MemoryPortfolioRepository implements PortfolioRepository {
   private readonly snapshots = new Map<string, PortfolioSnapshot>();
   private readonly runs = new Map<string, AgentRun>();
 
+  async healthCheck() {}
+
   async saveSnapshot(snapshot: PortfolioSnapshot) {
+    const existing = this.snapshots.get(snapshot.id);
+    if (existing) {
+      if (snapshotContentHash(existing) !== snapshotContentHash(snapshot)) {
+        throw new Error("同一快照 ID 对应了不同内容，已拒绝覆盖历史数据");
+      }
+      return "existing" as const;
+    }
     this.snapshots.set(snapshot.id, snapshot);
+    return "created" as const;
   }
 
   async saveAgentRun(run: AgentRun) {
-    this.runs.set(run.snapshotId, run);
+    this.runs.set(run.id, run);
   }
 
   async getLatestSnapshot(accountId?: string) {
@@ -38,7 +83,13 @@ export class MemoryPortfolioRepository implements PortfolioRepository {
   }
 
   async getLatestAgentRun(snapshotId: string) {
-    return this.runs.get(snapshotId) ?? null;
+    return (
+      [...this.runs.values()]
+        .filter((run) => run.snapshotId === snapshotId)
+        .sort((left, right) =>
+          right.requestedAt.localeCompare(left.requestedAt),
+        )[0] ?? null
+    );
   }
 
   async getHistory(accountId: string, limit: number) {

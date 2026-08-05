@@ -60,6 +60,19 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
     body: JSON.stringify(snapshot),
   });
   assert.equal(accepted.status, 202);
+  const acceptedPayload = (await accepted.json()) as { agentRunId: string };
+
+  const retried = await app.request("/v1/snapshots", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer test-secret",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(snapshot),
+  });
+  assert.equal(retried.status, 202);
+  const retriedPayload = (await retried.json()) as { agentRunId: string };
+  assert.equal(retriedPayload.agentRunId, acceptedPayload.agentRunId);
 
   const dashboard = await app.request("/v1/dashboard");
   assert.equal(dashboard.status, 200);

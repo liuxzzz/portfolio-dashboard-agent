@@ -88,9 +88,17 @@ export function createApp(options: AppOptions = {}) {
     }),
   );
 
-  app.get("/health", (context) =>
-    context.json({ service: "portfolio-api", status: "ok" }),
-  );
+  app.get("/health", async (context) => {
+    try {
+      await repository.healthCheck();
+      return context.json({ service: "portfolio-api", status: "ok" });
+    } catch {
+      return context.json(
+        { service: "portfolio-api", status: "unavailable" },
+        503,
+      );
+    }
+  });
 
   app.post("/v1/snapshots", async (context) => {
     if (!expectedSecret) {
@@ -119,9 +127,12 @@ export function createApp(options: AppOptions = {}) {
       );
     }
 
-    await repository.saveSnapshot(parsed.data);
-    const run = analyzePortfolio(parsed.data, now());
-    await repository.saveAgentRun(run);
+    const saveResult = await repository.saveSnapshot(parsed.data);
+    let run = await repository.getLatestAgentRun(parsed.data.id);
+    if (saveResult === "created" || !run) {
+      run = analyzePortfolio(parsed.data, now());
+      await repository.saveAgentRun(run);
+    }
 
     return context.json(
       {
