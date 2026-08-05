@@ -84,6 +84,8 @@ pnpm --filter @portfolio/collector run collect
 
 采集器默认依次读取所有股票类账户，并只在日志中输出哈希账户标识、持仓条数和数据时间，不输出股票、金额或账户正文。详细说明见 `docs/collector.md`。
 
+需要核验 API 与导出是否逐列一致时，可运行 `pnpm --filter @portfolio/collector run reconcile -- /绝对路径/持仓导出.xlsx`。该命令只输出脱敏的 27 列匹配统计，不上传快照。
+
 ## 验证命令
 
 ```bash

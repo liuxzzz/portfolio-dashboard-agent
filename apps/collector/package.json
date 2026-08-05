@@ -9,6 +9,7 @@
     "login": "tsx src/index.ts login",
     "collect": "tsx src/index.ts collect",
     "audit": "tsx src/index.ts audit",
+    "reconcile": "tsx src/index.ts reconcile",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/*.test.ts src/**/*.test.ts"
@@ -16,6 +17,7 @@
   "dependencies": {
     "@portfolio/domain": "workspace:*",
     "playwright": "1.62.1",
+    "read-excel-file": "9.2.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

@@ -231,7 +231,10 @@ function normalizePosition(
         ? null
         : requiredNumber(raw.y_profit, `${symbol}.y_profit`) + quoteDelta,
     breakEvenRate:
-      unitCost !== null && currentPrice !== null && currentPrice !== 0
+      unitCost !== null &&
+      currentPrice !== null &&
+      currentPrice !== 0 &&
+      unitCost > currentPrice
         ? (unitCost - currentPrice) / currentPrice
         : null,
     oneMonthRate: compoundRate(

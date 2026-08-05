@@ -67,6 +67,7 @@ test("normalizes quote deltas, daily profit, rates, and export extension fields"
   assert.equal(position.yearProfit, 1_700);
   assert.equal(position.dayProfit, 500);
   assert.equal(position.relatedSector, null);
+  assert.equal(position.breakEvenRate, null);
   assert.ok(Math.abs((position.oneMonthRate ?? 0) - 0.155) < 1e-12);
   assert.ok(Math.abs((position.portfolioWeight ?? 0) - 11 / 31) < 1e-12);
 });
@@ -125,4 +126,50 @@ test("includes intraday buys and fees in daily profit", () => {
 
   // Opening 800 shares gained 1; today's 200-share buy gained 0.2; fee is 5.
   assert.ok(Math.abs((snapshot.positions[0]?.dayProfit ?? 0) - 835) < 1e-12);
+});
+
+test("only exposes break-even rate for a losing position", () => {
+  const snapshot = normalizeSnapshot({
+    account: {
+      kind: "manual",
+      sourceAccountId: "fictional-account-3",
+      accountName: "虚构测试账户三",
+      manualId: "fictional-account-3",
+      fundKey: "",
+      marginFundKey: "",
+    },
+    positionResponse: stockPositionResponseSchema.parse({
+      upload_time: "2026-08-05 16:00:00",
+      money_remain: "0",
+      total_value: "1100",
+      total_asset: "1100",
+      position_rate: "100",
+      position: [
+        {
+          code: "600002",
+          name: "虚构制造",
+          market: "17",
+          hkmarket: "0",
+          price: "11",
+          count: "100",
+          hold_days: "3",
+          cost: "12",
+          value: "1100",
+          hold_profit: "-100",
+          hold_rate: "-8.33",
+          close_profit: "0",
+        },
+      ],
+    }),
+    trades: [],
+    transfers: [],
+    quotes: [
+      { scdm: "17", zqdm: "600002", xianjia: "11", zuoshou: "11" },
+    ],
+    capturedAt: new Date("2026-08-05T08:30:00.000Z"),
+  });
+
+  assert.ok(
+    Math.abs((snapshot.positions[0]?.breakEvenRate ?? 0) - 1 / 11) < 1e-12,
+  );
 });

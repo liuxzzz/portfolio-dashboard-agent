@@ -26,12 +26,22 @@ test("matches all 27 holding export columns", () => {
     actualCount: 27,
     missing: [],
     unexpected: [],
+    duplicates: [],
+    orderMatches: true,
   });
   assert.equal(
     holdingExportFields.filter((field) => field.source === "blank-by-source")
       .length,
     5,
   );
+});
+
+test("detects reordered export columns", () => {
+  const reordered = [...authoritativeHeaders];
+  [reordered[0], reordered[1]] = [reordered[1]!, reordered[0]!];
+
+  assert.equal(reconcileHoldingHeaders(reordered).complete, false);
+  assert.equal(reconcileHoldingHeaders(reordered).orderMatches, false);
 });
 
 test("reports field coverage without exposing portfolio values", () => {

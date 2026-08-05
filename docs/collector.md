@@ -31,6 +31,14 @@ Cookie、验证码、券商账号和原始接口正文不会上传，也不会�
 
 真实登录后可运行 `pnpm --filter @portfolio/collector run audit`。该命令不会上传快照，只输出 27 个导出字段的 `complete`、`partial`、`empty` 或 `blank-by-source` 覆盖状态和记录数，不输出股票代码、名称或金额。
 
+若要逐值核对同花顺导出，在登录有效且刚刚导出文件后运行：
+
+```bash
+pnpm --filter @portfolio/collector run reconcile -- /绝对路径/持仓导出.xlsx
+```
+
+`reconcile` 会在内存中按股票代码对齐 API 快照和“持仓数据”工作表，忽略账户汇总行，并按导出的实际精度比较 27 列。报告只包含每列的匹配数、差异数、单边空值数和容差，不包含代码、名称、金额或文件路径；发现差异时退出码为 `2`。该命令不会上传快照。
+
 ## 本地配置
 
 - `TZZB_PROFILE_DIR`：隔离资料目录，默认 `browser-profile/tzzb`。

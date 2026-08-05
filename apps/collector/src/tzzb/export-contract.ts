@@ -1,4 +1,4 @@
-import type { PortfolioSnapshot } from "@portfolio/domain";
+import type { PortfolioSnapshot, PositionSnapshot } from "@portfolio/domain";
 
 export type ExportFieldSource = "direct" | "calculated" | "blank-by-source";
 export type FieldCoverageStatus =
@@ -11,50 +11,66 @@ export type FieldCoverageStatus =
 export interface ExportFieldDefinition {
   header: string;
   source: ExportFieldSource;
-  snapshotKey: string;
+  snapshotKey: keyof PositionSnapshot;
+  comparison:
+    | { kind: "text" }
+    | { kind: "number"; absoluteTolerance: number }
+    | { kind: "blank" };
 }
 
 export const holdingExportFields = [
-  { header: "代码", source: "direct", snapshotKey: "symbol" },
-  { header: "名称", source: "direct", snapshotKey: "name" },
-  { header: "持有金额", source: "calculated", snapshotKey: "marketValue" },
-  { header: "当日盈亏", source: "calculated", snapshotKey: "dayProfit" },
-  { header: "当日盈亏率", source: "calculated", snapshotKey: "dayProfitRate" },
-  { header: "关联板块", source: "blank-by-source", snapshotKey: "relatedSector" },
-  { header: "板块涨幅", source: "blank-by-source", snapshotKey: "sectorRate" },
-  { header: "组合盈亏", source: "blank-by-source", snapshotKey: "combinationProfit" },
-  { header: "组合涨幅", source: "blank-by-source", snapshotKey: "combinationRate" },
-  { header: "持有盈亏", source: "calculated", snapshotKey: "holdingProfit" },
-  { header: "持有盈亏率", source: "calculated", snapshotKey: "holdingProfitRate" },
-  { header: "累计盈亏", source: "calculated", snapshotKey: "cumulativeProfit" },
-  { header: "累计盈亏率", source: "blank-by-source", snapshotKey: "cumulativeProfitRate" },
-  { header: "本周盈亏", source: "calculated", snapshotKey: "weekProfit" },
-  { header: "本月盈亏", source: "calculated", snapshotKey: "monthProfit" },
-  { header: "今年盈亏", source: "calculated", snapshotKey: "yearProfit" },
-  { header: "仓位占比", source: "calculated", snapshotKey: "portfolioWeight" },
-  { header: "持有数量", source: "direct", snapshotKey: "quantity" },
-  { header: "持仓天数", source: "direct", snapshotKey: "holdingDays" },
-  { header: "最新涨幅", source: "calculated", snapshotKey: "latestRate" },
-  { header: "最新价", source: "direct", snapshotKey: "currentPrice" },
-  { header: "单位成本", source: "direct", snapshotKey: "unitCost" },
-  { header: "回本涨幅", source: "calculated", snapshotKey: "breakEvenRate" },
-  { header: "近1月涨幅", source: "calculated", snapshotKey: "oneMonthRate" },
-  { header: "近3月涨幅", source: "calculated", snapshotKey: "threeMonthRate" },
-  { header: "近6月涨幅", source: "calculated", snapshotKey: "sixMonthRate" },
-  { header: "近1年涨幅", source: "calculated", snapshotKey: "oneYearRate" },
+  { header: "代码", source: "direct", snapshotKey: "symbol", comparison: { kind: "text" } },
+  { header: "名称", source: "direct", snapshotKey: "name", comparison: { kind: "text" } },
+  { header: "持有金额", source: "calculated", snapshotKey: "marketValue", comparison: { kind: "number", absoluteTolerance: 0.11 } },
+  { header: "当日盈亏", source: "calculated", snapshotKey: "dayProfit", comparison: { kind: "number", absoluteTolerance: 0.11 } },
+  { header: "当日盈亏率", source: "calculated", snapshotKey: "dayProfitRate", comparison: { kind: "number", absoluteTolerance: 0.00011 } },
+  { header: "关联板块", source: "blank-by-source", snapshotKey: "relatedSector", comparison: { kind: "blank" } },
+  { header: "板块涨幅", source: "blank-by-source", snapshotKey: "sectorRate", comparison: { kind: "blank" } },
+  { header: "组合盈亏", source: "blank-by-source", snapshotKey: "combinationProfit", comparison: { kind: "blank" } },
+  { header: "组合涨幅", source: "blank-by-source", snapshotKey: "combinationRate", comparison: { kind: "blank" } },
+  { header: "持有盈亏", source: "calculated", snapshotKey: "holdingProfit", comparison: { kind: "number", absoluteTolerance: 0.011 } },
+  { header: "持有盈亏率", source: "calculated", snapshotKey: "holdingProfitRate", comparison: { kind: "number", absoluteTolerance: 0.00011 } },
+  { header: "累计盈亏", source: "calculated", snapshotKey: "cumulativeProfit", comparison: { kind: "number", absoluteTolerance: 0.011 } },
+  { header: "累计盈亏率", source: "blank-by-source", snapshotKey: "cumulativeProfitRate", comparison: { kind: "blank" } },
+  { header: "本周盈亏", source: "calculated", snapshotKey: "weekProfit", comparison: { kind: "number", absoluteTolerance: 0.11 } },
+  { header: "本月盈亏", source: "calculated", snapshotKey: "monthProfit", comparison: { kind: "number", absoluteTolerance: 0.11 } },
+  { header: "今年盈亏", source: "calculated", snapshotKey: "yearProfit", comparison: { kind: "number", absoluteTolerance: 0.011 } },
+  { header: "仓位占比", source: "calculated", snapshotKey: "portfolioWeight", comparison: { kind: "number", absoluteTolerance: 0.00011 } },
+  { header: "持有数量", source: "direct", snapshotKey: "quantity", comparison: { kind: "number", absoluteTolerance: 0 } },
+  { header: "持仓天数", source: "direct", snapshotKey: "holdingDays", comparison: { kind: "number", absoluteTolerance: 0 } },
+  { header: "最新涨幅", source: "calculated", snapshotKey: "latestRate", comparison: { kind: "number", absoluteTolerance: 0.00011 } },
+  { header: "最新价", source: "direct", snapshotKey: "currentPrice", comparison: { kind: "number", absoluteTolerance: 0.0011 } },
+  { header: "单位成本", source: "direct", snapshotKey: "unitCost", comparison: { kind: "number", absoluteTolerance: 0.0011 } },
+  { header: "回本涨幅", source: "calculated", snapshotKey: "breakEvenRate", comparison: { kind: "number", absoluteTolerance: 0.00011 } },
+  { header: "近1月涨幅", source: "calculated", snapshotKey: "oneMonthRate", comparison: { kind: "number", absoluteTolerance: 0.00011 } },
+  { header: "近3月涨幅", source: "calculated", snapshotKey: "threeMonthRate", comparison: { kind: "number", absoluteTolerance: 0.00011 } },
+  { header: "近6月涨幅", source: "calculated", snapshotKey: "sixMonthRate", comparison: { kind: "number", absoluteTolerance: 0.00011 } },
+  { header: "近1年涨幅", source: "calculated", snapshotKey: "oneYearRate", comparison: { kind: "number", absoluteTolerance: 0.00011 } },
 ] as const satisfies readonly ExportFieldDefinition[];
 
 export function reconcileHoldingHeaders(headers: readonly string[]) {
   const expected = holdingExportFields.map((field) => field.header);
   const missing = expected.filter((header) => !headers.includes(header));
   const unexpected = headers.filter((header) => !expected.includes(header as never));
+  const duplicates = headers.filter(
+    (header, index) => headers.indexOf(header) !== index,
+  );
+  const orderMatches =
+    headers.length === expected.length &&
+    expected.every((header, index) => headers[index] === header);
 
   return {
-    complete: missing.length === 0 && unexpected.length === 0,
+    complete:
+      missing.length === 0 &&
+      unexpected.length === 0 &&
+      duplicates.length === 0 &&
+      orderMatches,
     expectedCount: expected.length,
     actualCount: headers.length,
     missing,
     unexpected,
+    duplicates,
+    orderMatches,
   };
 }
 
@@ -71,7 +87,7 @@ export function assessHoldingFieldCoverage(snapshot: PortfolioSnapshot) {
     }
 
     const populated = snapshot.positions.filter((position) => {
-      const value = position[field.snapshotKey as keyof typeof position];
+      const value = position[field.snapshotKey];
       return value !== null && value !== undefined && value !== "";
     }).length;
     const status: FieldCoverageStatus =
