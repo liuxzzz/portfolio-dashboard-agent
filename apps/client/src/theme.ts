@@ -7,10 +7,13 @@ export const colors = {
   border: "#DFE5EC",
   accent: "#5BC5A7",
   accentSoft: "#E8F7F2",
-  positive: "#63E6BE",
-  positiveDark: "#12815B",
-  negative: "#D75454",
-  negativeSoft: "#FCECEC",
+  marketUp: "#D75454",
+  marketUpOnDark: "#FF8A8A",
+  marketDown: "#12815B",
+  marketDownOnDark: "#63E6BE",
+  success: "#12815B",
+  danger: "#D75454",
+  dangerSoft: "#FCECEC",
   warning: "#A56A00",
   warningSoft: "#FFF2D8",
   info: "#3E6FCA",
@@ -32,4 +35,3 @@ export const radii = {
   lg: 18,
   xl: 24,
 } as const;
-

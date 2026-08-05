@@ -41,7 +41,7 @@ import com.horizon.portfolio.ui.theme.AccentSoft
 import com.horizon.portfolio.ui.theme.Canvas
 import com.horizon.portfolio.ui.theme.Ink
 import com.horizon.portfolio.ui.theme.MutedDark
-import com.horizon.portfolio.ui.theme.Positive
+import com.horizon.portfolio.ui.theme.Success
 
 @Composable
 fun PositionDetailScreen(
@@ -203,7 +203,7 @@ fun PositionDetailScreen(
             message?.takeIf(String::isNotBlank)?.let {
                 Text(
                     it,
-                    color = Positive,
+                    color = Success,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 7.dp),
                 )

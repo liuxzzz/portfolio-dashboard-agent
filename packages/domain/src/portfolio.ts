@@ -10,7 +10,7 @@ export const mainIndustrySchema = z.object({
 });
 
 export const defaultMainIndustries = [
-  { id: "semiconductor", name: "半导体", color: "#172033", sortOrder: 0 },
+  { id: "semiconductor", name: "半导体", color: "#3E6FCA", sortOrder: 0 },
   { id: "internet", name: "互联网", color: "#5BC5A7", sortOrder: 1 },
   { id: "smart-driving", name: "智能驾驶", color: "#F3B45A", sortOrder: 2 },
   { id: "commercial-space", name: "商业航天", color: "#7C8BE8", sortOrder: 3 },

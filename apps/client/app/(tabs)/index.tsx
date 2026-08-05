@@ -38,7 +38,7 @@ export default function OverviewScreen() {
           <Text
             style={[
               styles.profitValue,
-              (snapshot.dayProfit ?? 0) >= 0 ? styles.positive : styles.negative,
+              (snapshot.dayProfit ?? 0) >= 0 ? styles.marketUp : styles.marketDown,
             ]}
           >
             {formatCurrency(snapshot.dayProfit ?? 0, true)} · {formatPercent(snapshot.dayProfitRate, true)}
@@ -69,7 +69,7 @@ export default function OverviewScreen() {
       </View>
 
       <View style={styles.twoColumn}>
-        <Section title="行业分布" subtitle="按最新市值">
+        <Section title="行业分布" subtitle="按总资产占比">
           <DonutChart allocations={industries} />
         </Section>
         <Section title="个股集中度" subtitle="前五大持仓">
@@ -79,7 +79,7 @@ export default function OverviewScreen() {
                 key={position.symbol}
                 label={position.name}
                 value={position.portfolioWeight ?? 0}
-                tone={(position.dayProfit ?? 0) >= 0 ? "positive" : "negative"}
+                tone={(position.dayProfit ?? 0) >= 0 ? "up" : "down"}
               />
             ))}
           </View>
@@ -133,8 +133,8 @@ const styles = StyleSheet.create({
   profitBlock: { marginTop: spacing.lg },
   profitLabel: { color: "#AEB7C7", fontSize: 12 },
   profitValue: { fontSize: 16, fontWeight: "800", marginTop: 5 },
-  positive: { color: colors.positive },
-  negative: { color: colors.negative },
+  marketUp: { color: colors.marketUpOnDark },
+  marketDown: { color: colors.marketDownOnDark },
   syncText: { color: "#8C98AB", fontSize: 12, marginTop: spacing.md },
   metricGrid: {
     flexDirection: "row",

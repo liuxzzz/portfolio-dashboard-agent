@@ -12,7 +12,7 @@ const severityStyle: Record<
 > = {
   info: { background: colors.infoSoft, foreground: colors.info, icon: "information-circle" },
   attention: { background: colors.warningSoft, foreground: colors.warning, icon: "alert-circle" },
-  risk: { background: colors.negativeSoft, foreground: colors.negative, icon: "alert-circle" },
+  risk: { background: colors.dangerSoft, foreground: colors.danger, icon: "alert-circle" },
 };
 
 export default function AgentScreen() {
@@ -120,4 +120,3 @@ const styles = StyleSheet.create({
   evidenceTime: { color: colors.muted, fontSize: 11 },
   disclaimer: { color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: spacing.lg },
 });
-

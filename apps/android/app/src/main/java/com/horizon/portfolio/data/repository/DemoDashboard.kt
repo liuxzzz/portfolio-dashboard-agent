@@ -37,7 +37,7 @@ internal object DemoDashboard {
             ),
         ),
         mainIndustries = listOf(
-            MainIndustry("semiconductor", "半导体", "#172033", 0),
+            MainIndustry("semiconductor", "半导体", "#3E6FCA", 0),
             MainIndustry("internet", "互联网", "#5BC5A7", 1),
             MainIndustry("smart-driving", "智能驾驶", "#F3B45A", 2),
             MainIndustry("commercial-space", "商业航天", "#7C8BE8", 3),

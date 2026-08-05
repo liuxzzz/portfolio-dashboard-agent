@@ -28,8 +28,8 @@ import com.horizon.portfolio.ui.components.formatPercent
 import com.horizon.portfolio.ui.theme.Canvas
 import com.horizon.portfolio.ui.theme.Ink
 import com.horizon.portfolio.ui.theme.Muted
-import com.horizon.portfolio.ui.theme.Negative
-import com.horizon.portfolio.ui.theme.Positive
+import com.horizon.portfolio.ui.theme.MarketDown
+import com.horizon.portfolio.ui.theme.MarketUp
 
 @Composable
 fun HoldingsScreen(
@@ -77,7 +77,7 @@ fun HoldingsScreen(
                         Text(formatCurrency(position.marketValue), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Text(
                             formatPercent(position.dayProfitRate, true),
-                            color = if ((position.dayProfit ?: 0.0) >= 0) Positive else Negative,
+                            color = if ((position.dayProfit ?: 0.0) >= 0) MarketUp else MarketDown,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(top = 5.dp),

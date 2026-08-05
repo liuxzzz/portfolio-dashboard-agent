@@ -26,10 +26,10 @@ export function FreshnessBadge({ freshness, demo }: FreshnessBadgeProps) {
       <View
         style={[
           styles.dot,
-          { backgroundColor: isFresh ? colors.positiveDark : colors.warning },
+          { backgroundColor: isFresh ? colors.success : colors.warning },
         ]}
       />
-      <Text style={[styles.text, { color: isFresh ? colors.positiveDark : colors.warning }]}>
+      <Text style={[styles.text, { color: isFresh ? colors.success : colors.warning }]}>
         {demo ? "演示数据" : badgeCopy[freshness]}
       </Text>
     </View>
@@ -48,4 +48,3 @@ const styles = StyleSheet.create({
   dot: { borderRadius: 999, height: 7, width: 7 },
   text: { fontSize: 11, fontWeight: "800" },
 });
-

@@ -145,7 +145,7 @@ test("enriches a portfolio from versioned SW membership and daily bars", async (
     value: 80_000,
     weight: 0.8,
     dayRate: null,
-    color: "#172033",
+    color: "#3E6FCA",
   });
   assert.equal(
     (await repository.getLatestSnapshot())?.positions[0]?.industry,
@@ -243,7 +243,7 @@ test("aggregates the same industry name across mainland and HK taxon codes", asy
       value: 180_000,
       weight: 0.9,
       dayRate: 0.0572,
-      color: "#172033",
+      color: "#3E6FCA",
     },
   ]);
   assert.equal(result.snapshot.positions[1]?.sectorRate, null);

@@ -13,9 +13,13 @@ val Muted = Color(0xFF7B8799)
 val Border = Color(0xFFDFE5EC)
 val Accent = Color(0xFF5BC5A7)
 val AccentSoft = Color(0xFFE8F7F2)
-val Positive = Color(0xFF12815B)
-val Negative = Color(0xFFD75454)
-val NegativeSoft = Color(0xFFFCECEC)
+val MarketUp = Color(0xFFD75454)
+val MarketUpOnDark = Color(0xFFFF8A8A)
+val MarketDown = Color(0xFF12815B)
+val MarketDownOnDark = Color(0xFF63E6BE)
+val Success = Color(0xFF12815B)
+val Danger = Color(0xFFD75454)
+val DangerSoft = Color(0xFFFCECEC)
 val Warning = Color(0xFFA56A00)
 val WarningSoft = Color(0xFFFFF2D8)
 val Info = Color(0xFF3E6FCA)
@@ -32,7 +36,7 @@ private val colors = lightColorScheme(
     onSurface = Ink,
     surfaceVariant = AccentSoft,
     onSurfaceVariant = MutedDark,
-    error = Negative,
+    error = Danger,
     outline = Border,
 )
 

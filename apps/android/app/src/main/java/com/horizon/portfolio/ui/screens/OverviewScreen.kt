@@ -131,7 +131,6 @@ fun OverviewScreen(
             ) {
                 IndustryAllocationCard(
                     allocations = dashboard.industries,
-                    dataStatus = dashboard.industryData,
                     animationKey = snapshot.id,
                     playAnimation = playIntroAnimation,
                 )

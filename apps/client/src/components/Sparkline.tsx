@@ -13,6 +13,14 @@ export function Sparkline({ data }: SparklineProps) {
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
+  const first = data[0];
+  const last = data[data.length - 1];
+  const stroke =
+    first === undefined || last === undefined || last === first
+      ? colors.muted
+      : last > first
+        ? colors.marketUpOnDark
+        : colors.marketDownOnDark;
   const points = data
     .map((value, index) => {
       const x = data.length <= 1 ? 0 : (index / (data.length - 1)) * width;
@@ -27,7 +35,7 @@ export function Sparkline({ data }: SparklineProps) {
         <Polyline
           fill="none"
           points={points}
-          stroke={colors.positive}
+          stroke={stroke}
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="4"
@@ -36,4 +44,3 @@ export function Sparkline({ data }: SparklineProps) {
     </View>
   );
 }
-

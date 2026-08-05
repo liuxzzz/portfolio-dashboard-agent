@@ -39,7 +39,7 @@ export default function HoldingsScreen() {
                 </View>
                 <View style={styles.valueBlock}>
                   <Text style={styles.value}>{formatCurrency(position.marketValue)}</Text>
-                  <Text style={[styles.change, isPositive ? styles.positive : styles.negative]}>
+                  <Text style={[styles.change, isPositive ? styles.marketUp : styles.marketDown]}>
                     {formatPercent(position.dayProfitRate, true)}
                   </Text>
                 </View>
@@ -83,6 +83,6 @@ const styles = StyleSheet.create({
   valueBlock: { alignItems: "flex-end" },
   value: { color: colors.ink, fontSize: 14, fontWeight: "800" },
   change: { fontSize: 12, fontWeight: "800", marginTop: 6 },
-  positive: { color: colors.positiveDark },
-  negative: { color: colors.negative },
+  marketUp: { color: colors.marketUp },
+  marketDown: { color: colors.marketDown },
 });

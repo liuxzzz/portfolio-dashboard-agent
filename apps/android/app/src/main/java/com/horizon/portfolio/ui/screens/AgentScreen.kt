@@ -32,8 +32,8 @@ import com.horizon.portfolio.ui.theme.InfoSoft
 import com.horizon.portfolio.ui.theme.Ink
 import com.horizon.portfolio.ui.theme.Muted
 import com.horizon.portfolio.ui.theme.MutedDark
-import com.horizon.portfolio.ui.theme.Negative
-import com.horizon.portfolio.ui.theme.NegativeSoft
+import com.horizon.portfolio.ui.theme.Danger
+import com.horizon.portfolio.ui.theme.DangerSoft
 import com.horizon.portfolio.ui.theme.Warning
 import com.horizon.portfolio.ui.theme.WarningSoft
 
@@ -134,7 +134,7 @@ fun AgentScreen(
 private data class SeverityTone(val foreground: Color, val background: Color)
 
 private fun severityTone(severity: String): SeverityTone = when (severity) {
-    "risk" -> SeverityTone(Negative, NegativeSoft)
+    "risk" -> SeverityTone(Danger, DangerSoft)
     "attention" -> SeverityTone(Warning, WarningSoft)
     else -> SeverityTone(Info, InfoSoft)
 }

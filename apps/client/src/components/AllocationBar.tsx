@@ -5,7 +5,7 @@ import { formatPercent } from "@/utils/format";
 interface AllocationBarProps {
   label: string;
   value: number;
-  tone: "positive" | "negative";
+  tone: "up" | "down";
 }
 
 export function AllocationBar({ label, value, tone }: AllocationBarProps) {
@@ -20,7 +20,7 @@ export function AllocationBar({ label, value, tone }: AllocationBarProps) {
           style={[
             styles.fill,
             {
-              backgroundColor: tone === "positive" ? colors.positiveDark : colors.negative,
+              backgroundColor: tone === "up" ? colors.marketUp : colors.marketDown,
               width: `${Math.min(Math.max(value * 100, 2), 100)}%`,
             },
           ]}
@@ -37,4 +37,3 @@ const styles = StyleSheet.create({
   track: { backgroundColor: colors.canvas, borderRadius: 999, height: 7, marginTop: 8, overflow: "hidden" },
   fill: { borderRadius: 999, height: "100%" },
 });
-

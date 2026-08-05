@@ -28,13 +28,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizon.portfolio.R
 import com.horizon.portfolio.domain.model.IndustryAllocation
-import com.horizon.portfolio.domain.model.IndustryDataStatus
 import com.horizon.portfolio.domain.model.PortfolioHistoryPoint
 import com.horizon.portfolio.domain.model.PositionSnapshot
 import com.horizon.portfolio.ui.theme.Accent
@@ -63,8 +60,8 @@ import com.horizon.portfolio.ui.theme.Canvas
 import com.horizon.portfolio.ui.theme.Ink
 import com.horizon.portfolio.ui.theme.Muted
 import com.horizon.portfolio.ui.theme.MutedDark
-import com.horizon.portfolio.ui.theme.Negative
-import com.horizon.portfolio.ui.theme.Positive
+import com.horizon.portfolio.ui.theme.MarketDownOnDark
+import com.horizon.portfolio.ui.theme.MarketUpOnDark
 import com.horizon.portfolio.ui.theme.Surface as SurfaceColor
 import com.horizon.portfolio.ui.theme.Warning
 import com.horizon.portfolio.ui.theme.WarningSoft
@@ -252,7 +249,7 @@ fun PortfolioHeroCard(
     playAnimation: Boolean,
 ) {
     val isPositive = (dayProfit ?: 0.0) >= 0.0
-    val profitColor = if (isPositive) Accent else Color(0xFFFF8A8A)
+    val profitColor = if (isPositive) MarketUpOnDark else MarketDownOnDark
 
     Box(
         modifier = Modifier
@@ -402,6 +399,11 @@ private fun AnimatedPortfolioChart(
     modifier: Modifier = Modifier,
 ) {
     val values = history.map { it.totalAsset }
+    val chartColor = when {
+        values.size < 2 || values.last() == values.first() -> HeroMuted
+        values.last() > values.first() -> MarketUpOnDark
+        else -> MarketDownOnDark
+    }
     val progress = remember(animationKey, playAnimation) {
         Animatable(if (playAnimation) 0f else 1f)
     }
@@ -464,7 +466,7 @@ private fun AnimatedPortfolioChart(
             drawPath(
                 path = area,
                 brush = Brush.verticalGradient(
-                    colors = listOf(Accent.copy(alpha = 0.24f), Color.Transparent),
+                    colors = listOf(chartColor.copy(alpha = 0.24f), Color.Transparent),
                     startY = topPadding,
                     endY = size.height,
                 ),
@@ -474,8 +476,8 @@ private fun AnimatedPortfolioChart(
                 moveTo(visiblePoints.first().x, visiblePoints.first().y)
                 visiblePoints.drop(1).forEach { lineTo(it.x, it.y) }
             }
-            drawPath(line, Accent, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
-            drawCircle(Accent, 4.dp.toPx(), visiblePoints.last())
+            drawPath(line, chartColor, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
+            drawCircle(chartColor, 4.dp.toPx(), visiblePoints.last())
             drawCircle(HeroStart, 2.dp.toPx(), visiblePoints.last())
         }
 
@@ -648,20 +650,16 @@ fun PositionMeterCard(
 @Composable
 fun IndustryAllocationCard(
     allocations: List<IndustryAllocation>,
-    dataStatus: IndustryDataStatus?,
     animationKey: String,
     playAnimation: Boolean,
 ) {
     val slices = remember(allocations) { allocations.toSlices() }
-    val sortedAllocations = remember(allocations) { allocations.sortedByDescending { it.weight } }
-    var showAllIndustries by rememberSaveable(animationKey) { mutableStateOf(false) }
-    val visibleAllocations = if (showAllIndustries) sortedAllocations else sortedAllocations.take(5)
 
     OverviewSectionCard {
         OverviewSectionHeader(
             iconRes = R.drawable.ic_pie_chart_rounded,
-            title = "行业分布 · ${allocations.size}",
-            subtitle = industryDataSubtitle(dataStatus),
+            title = "行业分布",
+            subtitle = "按总资产占比",
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 22.dp),
@@ -680,46 +678,6 @@ fun IndustryAllocationCard(
                 verticalArrangement = Arrangement.spacedBy(13.dp),
             ) {
                 slices.forEach { slice -> AllocationLegendRow(slice) }
-            }
-        }
-        if (visibleAllocations.isNotEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 20.dp)
-                    .background(Canvas, RoundedCornerShape(18.dp))
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-            ) {
-                visibleAllocations.forEachIndexed { index, allocation ->
-                    if (index > 0) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(Border.copy(alpha = 0.75f)),
-                        )
-                    }
-                    IndustryDetailRow(allocation)
-                }
-            }
-        }
-        if (sortedAllocations.size > 5) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                TextButton(onClick = { showAllIndustries = !showAllIndustries }) {
-                    Text(
-                        text = if (showAllIndustries) {
-                            "收起行业明细"
-                        } else {
-                            "查看全部 ${sortedAllocations.size} 个行业"
-                        },
-                        color = Accent,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
             }
         }
     }
@@ -788,63 +746,6 @@ private fun DonutChart(
 }
 
 @Composable
-private fun IndustryDetailRow(allocation: IndustryAllocation) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(9.dp).background(parseColor(allocation.color), CircleShape))
-        Column(modifier = Modifier.weight(1f).padding(start = 9.dp)) {
-            Text(
-                text = allocation.name,
-                color = Ink,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = formatCurrency(allocation.value),
-                color = Muted,
-                fontSize = 9.sp,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = formatPercent(allocation.weight),
-                color = Ink,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold,
-            )
-            Text(
-                text = allocation.dayRate?.let { formatPercent(it, true) } ?: "暂无行情",
-                color = allocation.dayRate?.let { if (it >= 0) Positive else Negative } ?: Muted,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
-    }
-}
-
-private fun industryDataSubtitle(status: IndustryDataStatus?): String {
-    if (status == null) return "股票资产构成"
-    val source = when (status.source) {
-        "eastmoney" -> "东方财富"
-        "tushare" -> "Tushare 申万"
-        else -> status.source
-    }
-    val freshness = when (status.status) {
-        "fresh" -> "数据已同步"
-        "stale" -> "缓存数据"
-        "unavailable" -> "暂时不可用"
-        else -> "数据源未启用"
-    }
-    return "$source · $freshness"
-}
-
-@Composable
 private fun AllocationLegendRow(slice: AllocationSlice) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).background(slice.color, CircleShape))
@@ -857,23 +758,12 @@ private fun AllocationLegendRow(slice: AllocationSlice) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = 8.dp),
         )
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = formatPercent(slice.weight),
-                color = Ink,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            slice.dayRate?.let { dayRate ->
-                Text(
-                    text = "行业 ${formatPercent(dayRate, true)}",
-                    color = if (dayRate >= 0) Positive else Negative,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-        }
+        Text(
+            text = formatPercent(slice.weight),
+            color = Ink,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -1014,7 +904,7 @@ private fun OverviewSectionHeader(
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                tint = Positive,
+                tint = Accent,
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -1054,19 +944,12 @@ private data class AllocationSlice(
     val name: String,
     val weight: Double,
     val color: Color,
-    val dayRate: Double?,
 )
 
 private fun List<IndustryAllocation>.toSlices(): List<AllocationSlice> {
-    val sorted = sortedByDescending { it.weight }
-    if (sorted.size <= 4) {
-        return sorted.map { AllocationSlice(it.name, it.weight, parseColor(it.color), it.dayRate) }
+    return sortedByDescending { it.weight }.map {
+        AllocationSlice(it.name, it.weight, parseColor(it.color))
     }
-    val top = sorted.take(3).map {
-        AllocationSlice(it.name, it.weight, parseColor(it.color), it.dayRate)
-    }
-    val remainder = sorted.drop(3).sumOf { it.weight }
-    return top + AllocationSlice("其他", remainder, Muted, null)
 }
 
 private fun parseColor(value: String): Color = runCatching {
