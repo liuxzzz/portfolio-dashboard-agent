@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
+  INDUSTRY_SOURCE,
   INDUSTRY_TAXONOMY,
   type IndustryMarketBar,
   type IndustryMembership,
@@ -83,6 +84,8 @@ async function mapWithConcurrency<T, R>(
 }
 
 export class TushareIndustryProvider implements IndustryProvider {
+  readonly taxonomy = INDUSTRY_TAXONOMY;
+  readonly source = INDUSTRY_SOURCE;
   private readonly apiUrl: string;
   private readonly fetchImplementation: FetchImplementation;
   private readonly timeoutMs: number;

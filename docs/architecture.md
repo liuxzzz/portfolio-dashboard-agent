@@ -60,11 +60,12 @@ Android 客户端只负责显示、离线缓存和用户交互。采集凭证、
 
 ### Industry Data
 
-- Tushare Token 只配置在 Portfolio API，Collector 和 Android 客户端均不接触凭证。
-- `index_member_all` 提供申万一、二、三级行业及生效区间，`sw_daily` 提供一级行业日行情。
+- 默认 `EastmoneyIndustryProvider` 通过东方财富公开网页接口获取 A 股行业、港股公司所属行业和行业板块日线，不需要用户凭证；主题 ETF 使用可审计的基金名称规则映射到行业板块。
+- 可选 `TushareIndustryProvider` 使用 `index_member_all` 提供申万一、二、三级行业及生效区间，并使用 `sw_daily` 提供一级行业日行情。Token 只配置在 Portfolio API，Collector 和 Android 客户端均不接触凭证。
 - 外部数据独立保存，查询时按快照时间增强持仓，不修改不可变快照及其内容哈希。
+- 每个 Provider 声明自己的 taxonomy 和 source，查询只读取同一分类体系的缓存，避免申万与东方财富记录混用。
 - 分类同步默认缓存 24 小时，行情缓存 15 分钟；失败时使用最近缓存并在 `industryData` 中披露状态。
-- ETF、港股和无法匹配的证券保留源分类或显示“未分类”，不强行混用不同分类体系。
+- 无法匹配的证券保留源分类或显示“未分类”；宽基 ETF 归为“指数基金”，不伪造细分行业。
 
 ## 数据新鲜度
 

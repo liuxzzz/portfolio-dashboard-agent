@@ -12,6 +12,7 @@ export const INDUSTRY_SOURCE = "tushare";
 export interface SecurityReference {
   market: string;
   symbol: string;
+  name?: string;
 }
 
 export interface IndustryMembership extends SecurityReference {
@@ -43,6 +44,8 @@ export interface IndustryMarketBar {
 }
 
 export interface IndustryProvider {
+  readonly taxonomy: string;
+  readonly source: string;
   fetchMemberships(
     securities: readonly SecurityReference[],
   ): Promise<IndustryMembership[]>;
@@ -75,8 +78,12 @@ function securityKey(reference: SecurityReference) {
 function uniqueSecurityReferences(snapshot: PortfolioSnapshot) {
   const unique = new Map<string, SecurityReference>();
   for (const position of snapshot.positions) {
-    if (!["SH", "SZ", "BJ"].includes(position.market)) continue;
-    const reference = { market: position.market, symbol: position.symbol };
+    if (!["SH", "SZ", "BJ", "HK"].includes(position.market)) continue;
+    const reference = {
+      market: position.market,
+      symbol: position.symbol,
+      name: position.name,
+    };
     unique.set(securityKey(reference), reference);
   }
   return [...unique.values()];
@@ -97,7 +104,13 @@ function aggregateIndustries(
 ): IndustryAllocation[] {
   const totals = new Map<
     string,
-    { code: string | null; name: string; value: number; dayRate: number | null }
+    {
+      code: string | null;
+      name: string;
+      value: number;
+      dayRate: number | null;
+      hasMarketBar: boolean;
+    }
   >();
 
   for (const position of snapshot.positions) {
@@ -105,20 +118,29 @@ function aggregateIndustries(
     const name = position.industry ?? "未分类";
     const code = membership?.level1Code ?? null;
     const bar = code ? barByCode.get(code) : undefined;
-    const key = code ?? `name:${name}`;
+    const key = `name:${name}`;
+    const dayRate =
+      bar?.pctChange === null || bar?.pctChange === undefined
+        ? position.sectorRate ?? null
+        : bar.pctChange / 100;
     const existing = totals.get(key);
     if (existing) {
       existing.value += position.marketValue;
+      if (!existing.hasMarketBar && bar) {
+        existing.code = code;
+        existing.dayRate = dayRate;
+        existing.hasMarketBar = true;
+      } else if (existing.dayRate === null && dayRate !== null) {
+        existing.dayRate = dayRate;
+      }
       continue;
     }
     totals.set(key, {
       code,
       name,
       value: position.marketValue,
-      dayRate:
-        bar?.pctChange === null || bar?.pctChange === undefined
-          ? position.sectorRate ?? null
-          : bar.pctChange / 100,
+      dayRate,
+      hasMarketBar: bar !== undefined,
     });
   }
 
@@ -158,6 +180,8 @@ export class PortfolioIndustryService {
   ): Promise<IndustryEnrichment> {
     const securities = uniqueSecurityReferences(snapshot);
     const asOf = new Date(snapshot.capturedAt);
+    const taxonomy = this.provider?.taxonomy ?? INDUSTRY_TAXONOMY;
+    const source = this.provider?.source ?? INDUSTRY_SOURCE;
     let syncFailed = false;
     let syncAttempted = false;
 
@@ -182,7 +206,7 @@ export class PortfolioIndustryService {
     const memberships = await this.repository.getIndustryMemberships(
       securities,
       asOf,
-      INDUSTRY_TAXONOMY,
+      taxonomy,
     );
     const membershipBySecurity = new Map(
       memberships.map((membership) => [securityKey(membership), membership]),
@@ -213,7 +237,7 @@ export class PortfolioIndustryService {
     const bars = await this.repository.getLatestIndustryBars(
       industryCodes,
       asOf,
-      INDUSTRY_TAXONOMY,
+      taxonomy,
     );
     const barByCode = new Map(bars.map((bar) => [bar.industryCode, bar]));
     const enrichedSnapshot: PortfolioSnapshot = {
@@ -244,8 +268,8 @@ export class PortfolioIndustryService {
     const hasCachedData = memberships.length > 0;
     const industryData: IndustryDataStatus = this.provider
       ? {
-          taxonomy: INDUSTRY_TAXONOMY,
-          source: INDUSTRY_SOURCE,
+          taxonomy,
+          source,
           status: syncFailed
             ? hasCachedData
               ? "stale"
@@ -261,13 +285,13 @@ export class PortfolioIndustryService {
               : "行业数据来自本地缓存",
         }
       : {
-          taxonomy: INDUSTRY_TAXONOMY,
-          source: INDUSTRY_SOURCE,
+          taxonomy,
+          source,
           status: hasCachedData ? "stale" : "disabled",
           syncedAt: latestFetchedAt,
           message: hasCachedData
             ? "未配置行业数据凭证，当前展示最近一次缓存"
-            : "未配置 TUSHARE_TOKEN，暂未启用申万行业数据",
+            : "行业数据源未启用",
         };
 
     return {

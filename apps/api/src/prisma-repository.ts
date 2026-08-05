@@ -414,7 +414,11 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
           { OR: [{ effectiveTo: null }, { effectiveTo: { gte: asOf } }] },
         ],
       },
-      orderBy: [{ isCurrent: "desc" }, { effectiveFrom: "desc" }],
+      orderBy: [
+        { isCurrent: "desc" },
+        { effectiveFrom: "desc" },
+        { fetchedAt: "desc" },
+      ],
     });
     const current = new Map<string, (typeof records)[number]>();
     for (const record of records) {

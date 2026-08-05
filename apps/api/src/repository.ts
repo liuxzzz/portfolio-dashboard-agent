@@ -152,8 +152,11 @@ export class MemoryPortfolioRepository implements PortfolioRepository {
       )
       .sort((left, right) => {
         if (left.isCurrent !== right.isCurrent) return left.isCurrent ? -1 : 1;
-        return (right.effectiveFrom ?? "").localeCompare(
+        const effectiveDateOrder = (right.effectiveFrom ?? "").localeCompare(
           left.effectiveFrom ?? "",
+        );
+        return (
+          effectiveDateOrder || right.fetchedAt.localeCompare(left.fetchedAt)
         );
       });
     const current = new Map<string, IndustryMembership>();

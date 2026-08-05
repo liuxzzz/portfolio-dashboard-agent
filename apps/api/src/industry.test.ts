@@ -49,9 +49,13 @@ test("enriches a portfolio from versioned SW membership and daily bars", async (
   let membershipCalls = 0;
   let barCalls = 0;
   const provider: IndustryProvider = {
+    taxonomy: INDUSTRY_TAXONOMY,
+    source: "test",
     async fetchMemberships(securities) {
       membershipCalls += 1;
-      assert.deepEqual(securities, [{ market: "SH", symbol: "600000" }]);
+      assert.deepEqual(securities, [
+        { market: "SH", symbol: "600000", name: "虚构银行" },
+      ]);
       return [
         {
           id: "membership-bank",
@@ -126,6 +130,8 @@ test("enriches a portfolio from versioned SW membership and daily bars", async (
 test("keeps the dashboard available when the provider fails", async () => {
   const repository = new MemoryPortfolioRepository();
   const provider: IndustryProvider = {
+    taxonomy: INDUSTRY_TAXONOMY,
+    source: "test",
     async fetchMemberships() {
       throw new Error("provider unavailable");
     },
@@ -140,4 +146,78 @@ test("keeps the dashboard available when the provider fails", async () => {
   assert.equal(result.snapshot.positions[0]?.industry, null);
   assert.equal(result.industries[0]?.name, "未分类");
   assert.equal((await service.enrich(snapshot)).industryData.status, "unavailable");
+});
+
+test("aggregates the same industry name across mainland and HK taxon codes", async () => {
+  const repository = new MemoryPortfolioRepository();
+  const mixedSnapshot: PortfolioSnapshot = {
+    ...snapshot,
+    id: "snapshot-cross-market-industry-test",
+    totalAsset: 200_000,
+    stockMarketValue: 180_000,
+    positions: [
+      snapshot.positions[0]!,
+      {
+        ...snapshot.positions[0]!,
+        market: "HK",
+        symbol: "00981",
+        name: "虚构港股半导体",
+        marketValue: 100_000,
+      },
+    ],
+  };
+  const provider: IndustryProvider = {
+    taxonomy: "EASTMONEY",
+    source: "eastmoney",
+    async fetchMemberships(securities) {
+      return securities.map((security) => ({
+        id: `${security.market}:${security.symbol}`,
+        taxonomy: "EASTMONEY",
+        market: security.market,
+        symbol: security.symbol,
+        level1Code:
+          security.market === "HK" ? "HK:dcc56252e4af" : "BK1036",
+        level1Name: "半导体",
+        level2Code: null,
+        level2Name: null,
+        level3Code: null,
+        level3Name: null,
+        effectiveFrom: null,
+        effectiveTo: null,
+        isCurrent: true,
+        source: "test",
+        fetchedAt: "2026-08-05T09:00:00.000Z",
+      }));
+    },
+    async fetchDailyBars() {
+      return [
+        {
+          id: "bar-semiconductor-20260805",
+          taxonomy: "EASTMONEY",
+          industryCode: "BK1036",
+          industryName: "半导体",
+          tradeDate: "2026-08-05T00:00:00.000Z",
+          close: 2_610.97,
+          pctChange: 5.72,
+          source: "test",
+          fetchedAt: "2026-08-05T09:00:00.000Z",
+        },
+      ];
+    },
+  };
+  const service = new PortfolioIndustryService(repository, provider);
+
+  const result = await service.enrich(mixedSnapshot);
+
+  assert.deepEqual(result.industries, [
+    {
+      name: "半导体",
+      code: "BK1036",
+      value: 180_000,
+      weight: 0.9,
+      dayRate: 0.0572,
+      color: "#172033",
+    },
+  ]);
+  assert.equal(result.snapshot.positions[1]?.sectorRate, null);
 });

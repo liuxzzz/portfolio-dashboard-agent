@@ -6,6 +6,7 @@ import { createApp } from "./app.js";
 import { createPrismaClient } from "./prisma.js";
 import { PrismaPortfolioRepository } from "./prisma-repository.js";
 import { PortfolioIndustryService } from "./industry.js";
+import { EastmoneyIndustryProvider } from "./eastmoney-industry-provider.js";
 import { TushareIndustryProvider } from "./tushare-industry-provider.js";
 
 const envCandidates = [
@@ -24,14 +25,31 @@ if (!databaseUrl) {
 const prisma = createPrismaClient(databaseUrl);
 const repository = new PrismaPortfolioRepository(prisma);
 await repository.healthCheck();
+const industryProviderName = (
+  process.env.INDUSTRY_PROVIDER ?? "eastmoney"
+).trim().toLowerCase();
 const tushareToken = process.env.TUSHARE_TOKEN?.trim();
 const tushareApiUrl = process.env.TUSHARE_API_URL?.trim();
-const industryProvider = tushareToken
-  ? new TushareIndustryProvider(
+const industryProvider = (() => {
+  if (industryProviderName === "eastmoney") {
+    return new EastmoneyIndustryProvider();
+  }
+  if (industryProviderName === "tushare") {
+    if (!tushareToken) {
+      throw new Error(
+        "INDUSTRY_PROVIDER=tushare 时必须配置 TUSHARE_TOKEN",
+      );
+    }
+    return new TushareIndustryProvider(
       tushareToken,
       tushareApiUrl ? { apiUrl: tushareApiUrl } : {},
-    )
-  : undefined;
+    );
+  }
+  if (industryProviderName === "disabled") return undefined;
+  throw new Error(
+    `不支持的 INDUSTRY_PROVIDER：${industryProviderName}`,
+  );
+})();
 const industryService = new PortfolioIndustryService(
   repository,
   industryProvider,

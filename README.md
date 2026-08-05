@@ -78,16 +78,23 @@ pnpm db:down
 
 ## 行业数据
 
-在 `.env` 中配置服务端专用的 Tushare Token 后，看板会自动补齐 A 股持仓的申万一级行业、最细分行业以及一级行业当日涨跌：
+默认使用免费的东方财富公开网页接口，不需要注册或 Token。看板会补齐 A 股和港股所属行业；A 股行业与主题 ETF 还会尽量关联行业板块日涨跌。ETF 使用基金名称规则归类，无法可靠匹配的宽基基金归为“指数基金”：
 
 ```bash
+INDUSTRY_PROVIDER=eastmoney
+```
+
+如果已有 Tushare 对应权限，也可以显式切回申万行业数据：
+
+```bash
+INDUSTRY_PROVIDER=tushare
 TUSHARE_TOKEN=your-personal-token
 TUSHARE_API_URL=https://api.tushare.pro
 ```
 
-首次查询看板时自动同步，行业分类缓存 24 小时、行情缓存 15 分钟。也可以使用与快照写入相同的 Bearer Secret 调用 `POST /v1/industries/refresh` 强制刷新。未配置 Token 或外部服务失败时，看板仍然可用，并回退到数据库缓存或快照自带行业。
+也可以设置 `INDUSTRY_PROVIDER=disabled` 完全关闭外部行业数据。首次查询看板时自动同步，行业分类缓存 24 小时、行情缓存 15 分钟。也可以使用与快照写入相同的 Bearer Secret 调用 `POST /v1/industries/refresh` 强制刷新。外部服务失败时，看板仍然可用，并回退到同一分类体系的数据库缓存或快照自带行业。
 
-Token 只由 API 读取，不进入 Collector、Android APK、日志或看板响应。Tushare 标准数据服务许可仅适合当前个人、非商业阶段；对外提供服务前必须确认商业授权或更换具备相应许可的数据源。
+东方财富公开网页接口没有服务等级承诺，字段和访问策略可能变化，因此只用于当前个人看板，并保留本地缓存和明确的同步状态。对外提供服务前必须确认数据授权或更换具备相应许可的数据源。Tushare Token 如启用，只由 API 读取，不进入 Collector、Android APK、日志或看板响应。
 
 ## 本地采集
 
