@@ -5,6 +5,7 @@ import com.horizon.portfolio.domain.model.AgentRun
 import com.horizon.portfolio.domain.model.DashboardPayload
 import com.horizon.portfolio.domain.model.EvidenceReference
 import com.horizon.portfolio.domain.model.IndustryAllocation
+import com.horizon.portfolio.domain.model.MainIndustry
 import com.horizon.portfolio.domain.model.PortfolioHistoryPoint
 import com.horizon.portfolio.domain.model.PortfolioSnapshot
 import com.horizon.portfolio.domain.model.PositionSnapshot
@@ -34,6 +35,14 @@ internal object DemoDashboard {
                 PositionSnapshot("600900", "示例公用事业", "SH", "公用事业", 5600.0, 28.7, 27.3, 160_720.0, 0.1249, 1120.0, 0.007, 7_840.0, 0.0513, 73),
                 PositionSnapshot("510300", "示例宽基 ETF", "SH", "宽基指数", 26_000.0, 4.385, 4.21, 113_992.0, 0.0886, 525.0, 0.0046, 4_550.0, 0.0416, 67),
             ),
+        ),
+        mainIndustries = listOf(
+            MainIndustry("semiconductor", "半导体", "#172033", 0),
+            MainIndustry("internet", "互联网", "#5BC5A7", 1),
+            MainIndustry("smart-driving", "智能驾驶", "#F3B45A", 2),
+            MainIndustry("commercial-space", "商业航天", "#7C8BE8", 3),
+            MainIndustry("healthcare", "医药", "#D96C8B", 4),
+            MainIndustry("banking", "银行", "#8B98A9", 5),
         ),
         industries = listOf(
             IndustryAllocation("食品饮料", 373_008.0, 0.29, "#172033"),

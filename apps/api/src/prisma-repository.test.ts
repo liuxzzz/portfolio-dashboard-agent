@@ -106,6 +106,44 @@ test(
         positionRate: snapshot.positionRate,
       },
     ]);
+    assert.deepEqual(
+      (await repository.getMainIndustries()).map((industry) => industry.name),
+      ["半导体", "互联网", "智能驾驶", "商业航天", "医药", "银行"],
+    );
+    const savedOverride = await repository.saveIndustryOverride({
+      source: snapshot.source,
+      sourceAccountId,
+      market: "SH",
+      symbol: "600000",
+      mainIndustryId: "banking",
+    });
+    assert.equal(savedOverride.mainIndustryName, "银行");
+    assert.equal(
+      (
+        await repository.getIndustryOverrides(
+          snapshot.source,
+          sourceAccountId,
+          [{ market: "SH", symbol: "600000" }],
+        )
+      )[0]?.mainIndustryId,
+      "banking",
+    );
+    await repository.deleteIndustryOverride(
+      snapshot.source,
+      sourceAccountId,
+      "SH",
+      "600000",
+    );
+    assert.equal(
+      (
+        await repository.getIndustryOverrides(
+          snapshot.source,
+          sourceAccountId,
+          [{ market: "SH", symbol: "600000" }],
+        )
+      ).length,
+      0,
+    );
 
     await repository.saveIndustryMemberships([
       {

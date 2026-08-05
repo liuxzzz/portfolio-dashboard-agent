@@ -1,26 +1,39 @@
 package com.horizon.portfolio.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.horizon.portfolio.domain.model.MainIndustry
 import com.horizon.portfolio.domain.model.PortfolioSnapshot
 import com.horizon.portfolio.ui.components.MetricCard
 import com.horizon.portfolio.ui.components.PageHeader
+import com.horizon.portfolio.ui.components.SectionCard
 import com.horizon.portfolio.ui.components.formatCurrency
 import com.horizon.portfolio.ui.components.formatPercent
 import com.horizon.portfolio.ui.components.formatTime
@@ -28,14 +41,96 @@ import com.horizon.portfolio.ui.theme.AccentSoft
 import com.horizon.portfolio.ui.theme.Canvas
 import com.horizon.portfolio.ui.theme.Ink
 import com.horizon.portfolio.ui.theme.MutedDark
+import com.horizon.portfolio.ui.theme.Positive
 
 @Composable
 fun PositionDetailScreen(
     snapshot: PortfolioSnapshot,
     symbol: String,
+    mainIndustries: List<MainIndustry>,
+    isSavingIndustry: Boolean,
+    message: String?,
+    onSetMainIndustry: (String, String, String, String) -> Unit,
+    onRestoreAutomaticIndustry: (String, String) -> Unit,
     onBack: () -> Unit,
 ) {
     val position = snapshot.positions.firstOrNull { it.symbol == symbol }
+    var showIndustryDialog by rememberSaveable(symbol) { mutableStateOf(false) }
+    var selectedIndustryId by rememberSaveable(symbol, position?.mainIndustryId) {
+        mutableStateOf(
+            position?.mainIndustryId
+                ?: mainIndustries.firstOrNull { it.name == position?.industry }?.id,
+        )
+    }
+
+    if (showIndustryDialog && position != null) {
+        AlertDialog(
+            onDismissRequest = { if (!isSavingIndustry) showIndustryDialog = false },
+            title = { Text("选择我的主行业") },
+            text = {
+                Column {
+                    Text(
+                        "你的选择会覆盖数据源分类，并立即用于首页行业聚合。",
+                        color = MutedDark,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 10.dp),
+                    )
+                    mainIndustries.sortedBy { it.sortOrder }.forEach { industry ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !isSavingIndustry) {
+                                    selectedIndustryId = industry.id
+                                }
+                                .padding(vertical = 5.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = selectedIndustryId == industry.id,
+                                onClick = { selectedIndustryId = industry.id },
+                                enabled = !isSavingIndustry,
+                            )
+                            Text(
+                                industry.name,
+                                color = Ink,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(start = 6.dp),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = selectedIndustryId != null && !isSavingIndustry,
+                    onClick = {
+                        val selected = mainIndustries.firstOrNull {
+                            it.id == selectedIndustryId
+                        } ?: return@TextButton
+                        onSetMainIndustry(
+                            position.market,
+                            position.symbol,
+                            selected.id,
+                            selected.name,
+                        )
+                        showIndustryDialog = false
+                    },
+                ) {
+                    Text("保存")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isSavingIndustry,
+                    onClick = { showIndustryDialog = false },
+                ) {
+                    Text("取消")
+                }
+            },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -55,6 +150,65 @@ fun PositionDetailScreen(
             title = position.name,
             subtitle = position.industry ?: "未分类行业",
         )
+
+        SectionCard(
+            title = "我的主行业",
+            subtitle = if (position.industryCustomized) {
+                "手动分类优先于数据源，并用于首页行业聚合"
+            } else {
+                "当前使用数据源自动分类"
+            },
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        position.industry ?: "未分类",
+                        color = Ink,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                    Text(
+                        "数据源分类：${position.sourceIndustry ?: "暂无"}",
+                        color = MutedDark,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
+                }
+                if (isSavingIndustry) {
+                    CircularProgressIndicator(Modifier.size(24.dp))
+                } else {
+                    OutlinedButton(
+                        enabled = mainIndustries.isNotEmpty(),
+                        onClick = { showIndustryDialog = true },
+                    ) {
+                        Text("修改")
+                    }
+                }
+            }
+            if (position.industryCustomized) {
+                TextButton(
+                    enabled = !isSavingIndustry,
+                    onClick = {
+                        onRestoreAutomaticIndustry(position.market, position.symbol)
+                    },
+                    modifier = Modifier.padding(top = 5.dp),
+                ) {
+                    Text("恢复自动分类")
+                }
+            }
+            message?.takeIf(String::isNotBlank)?.let {
+                Text(
+                    it,
+                    color = Positive,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 7.dp),
+                )
+            }
+        }
 
         Column(
             modifier = Modifier.fillMaxWidth().background(Ink, RoundedCornerShape(24.dp)).padding(24.dp),

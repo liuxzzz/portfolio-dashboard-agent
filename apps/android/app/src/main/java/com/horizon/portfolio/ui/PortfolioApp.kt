@@ -146,6 +146,11 @@ fun PortfolioApp() {
                 PositionDetailScreen(
                     snapshot = dashboard.snapshot,
                     symbol = entry.arguments?.getString("symbol").orEmpty(),
+                    mainIndustries = dashboard.mainIndustries,
+                    isSavingIndustry = state.savingIndustrySymbol == entry.arguments?.getString("symbol"),
+                    message = state.message,
+                    onSetMainIndustry = viewModel::setMainIndustry,
+                    onRestoreAutomaticIndustry = viewModel::restoreAutomaticIndustry,
                     onBack = navController::popBackStack,
                 )
             }

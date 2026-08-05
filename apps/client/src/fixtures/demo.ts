@@ -1,5 +1,9 @@
 import { analyzePortfolio } from "@portfolio/agent-core";
-import type { DashboardPayload, PortfolioSnapshot } from "@portfolio/domain";
+import {
+  defaultMainIndustries,
+  type DashboardPayload,
+  type PortfolioSnapshot,
+} from "@portfolio/domain";
 import { colors } from "@/theme";
 
 const snapshot: PortfolioSnapshot = {
@@ -119,6 +123,7 @@ const snapshot: PortfolioSnapshot = {
 
 export const demoDashboard: DashboardPayload = {
   snapshot,
+  mainIndustries: defaultMainIndustries.map((industry) => ({ ...industry })),
   industries: [
     { name: "食品饮料", value: 373_008, weight: 0.29, color: colors.chart[0] },
     { name: "非银金融", value: 251_120, weight: 0.1952, color: colors.chart[1] },

@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 data class DashboardUiState(
     val isLoading: Boolean = true,
     val isRunningAgent: Boolean = false,
+    val savingIndustrySymbol: String? = null,
     val dashboard: DashboardPayload? = null,
     val source: DashboardSource? = null,
     val message: String? = null,
@@ -80,6 +81,65 @@ class DashboardViewModel(
                     it.copy(
                         isRunningAgent = false,
                         message = error.message ?: "Agent 运行失败",
+                    )
+                }
+            }
+        }
+    }
+
+    fun setMainIndustry(
+        market: String,
+        symbol: String,
+        mainIndustryId: String,
+        mainIndustryName: String,
+    ) {
+        if (mutableState.value.savingIndustrySymbol != null) return
+        viewModelScope.launch {
+            mutableState.update { it.copy(savingIndustrySymbol = symbol, message = null) }
+            try {
+                val result = repository.setMainIndustry(market, symbol, mainIndustryId)
+                mutableState.update {
+                    it.copy(
+                        dashboard = result.payload,
+                        source = result.source,
+                        savingIndustrySymbol = null,
+                        message = "已按你的认知归类为$mainIndustryName。",
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        savingIndustrySymbol = null,
+                        message = error.message ?: "主行业保存失败",
+                    )
+                }
+            }
+        }
+    }
+
+    fun restoreAutomaticIndustry(market: String, symbol: String) {
+        if (mutableState.value.savingIndustrySymbol != null) return
+        viewModelScope.launch {
+            mutableState.update { it.copy(savingIndustrySymbol = symbol, message = null) }
+            try {
+                val result = repository.restoreAutomaticIndustry(market, symbol)
+                mutableState.update {
+                    it.copy(
+                        dashboard = result.payload,
+                        source = result.source,
+                        savingIndustrySymbol = null,
+                        message = "已恢复数据源自动分类。",
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        savingIndustrySymbol = null,
+                        message = error.message ?: "恢复自动分类失败",
                     )
                 }
             }

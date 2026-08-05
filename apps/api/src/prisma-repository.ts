@@ -12,7 +12,9 @@ import type {
 } from "./industry.js";
 import {
   snapshotContentHash,
+  type SaveIndustryOverrideInput,
   type PortfolioRepository,
+  type SecurityIndustryOverride,
   type SnapshotSaveResult,
 } from "./repository.js";
 
@@ -343,6 +345,104 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
       totalAsset: number(record.totalAsset) ?? 0,
       positionRate: number(record.positionRate),
     }));
+  }
+
+  async getMainIndustries() {
+    return this.prisma.mainIndustry.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true,
+        name: true,
+        color: true,
+        sortOrder: true,
+      },
+    });
+  }
+
+  async getIndustryOverrides(
+    source: string,
+    sourceAccountId: string,
+    securities: readonly SecurityReference[],
+  ) {
+    if (securities.length === 0) return [];
+    const records = await this.prisma.securityIndustryOverride.findMany({
+      where: {
+        account: { source, sourceAccountId },
+        OR: securities.map((security) => ({
+          market: security.market,
+          symbol: security.symbol,
+        })),
+      },
+      include: { account: true, mainIndustry: true },
+    });
+    return records.map((record): SecurityIndustryOverride => ({
+      source: record.account.source,
+      sourceAccountId: record.account.sourceAccountId,
+      market: record.market,
+      symbol: record.symbol,
+      mainIndustryId: record.mainIndustryId,
+      mainIndustryName: record.mainIndustry.name,
+      color: record.mainIndustry.color,
+      updatedAt: record.updatedAt.toISOString(),
+    }));
+  }
+
+  async saveIndustryOverride(input: SaveIndustryOverrideInput) {
+    const [account, industry] = await Promise.all([
+      this.prisma.account.findUnique({
+        where: {
+          source_sourceAccountId: {
+            source: input.source,
+            sourceAccountId: input.sourceAccountId,
+          },
+        },
+      }),
+      this.prisma.mainIndustry.findFirst({
+        where: { id: input.mainIndustryId, isActive: true },
+      }),
+    ]);
+    if (!account) throw new Error("账户不存在");
+    if (!industry) throw new Error("主行业不存在或已停用");
+
+    const record = await this.prisma.securityIndustryOverride.upsert({
+      where: {
+        accountId_market_symbol: {
+          accountId: account.id,
+          market: input.market,
+          symbol: input.symbol,
+        },
+      },
+      create: {
+        accountId: account.id,
+        market: input.market,
+        symbol: input.symbol,
+        mainIndustryId: input.mainIndustryId,
+      },
+      update: { mainIndustryId: input.mainIndustryId },
+      include: { mainIndustry: true },
+    });
+    return {
+      ...input,
+      mainIndustryName: record.mainIndustry.name,
+      color: record.mainIndustry.color,
+      updatedAt: record.updatedAt.toISOString(),
+    };
+  }
+
+  async deleteIndustryOverride(
+    source: string,
+    sourceAccountId: string,
+    market: string,
+    symbol: string,
+  ) {
+    await this.prisma.securityIndustryOverride.deleteMany({
+      where: {
+        account: { source, sourceAccountId },
+        market,
+        symbol,
+      },
+    });
   }
 
   async saveIndustryMemberships(

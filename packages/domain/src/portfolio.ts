@@ -2,11 +2,30 @@ import { z } from "zod";
 
 export const dataFreshnessSchema = z.enum(["fresh", "stale", "unknown"]);
 
+export const mainIndustrySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  color: z.string().min(1),
+  sortOrder: z.number().int().nonnegative(),
+});
+
+export const defaultMainIndustries = [
+  { id: "semiconductor", name: "半导体", color: "#172033", sortOrder: 0 },
+  { id: "internet", name: "互联网", color: "#5BC5A7", sortOrder: 1 },
+  { id: "smart-driving", name: "智能驾驶", color: "#F3B45A", sortOrder: 2 },
+  { id: "commercial-space", name: "商业航天", color: "#7C8BE8", sortOrder: 3 },
+  { id: "healthcare", name: "医药", color: "#D96C8B", sortOrder: 4 },
+  { id: "banking", name: "银行", color: "#8B98A9", sortOrder: 5 },
+] as const;
+
 export const positionSnapshotSchema = z.object({
   symbol: z.string().min(1),
   name: z.string().min(1),
   market: z.string().min(1),
   industry: z.string().nullable(),
+  sourceIndustry: z.string().nullable().optional(),
+  mainIndustryId: z.string().nullable().optional(),
+  industryCustomized: z.boolean().optional(),
   quantity: z.number(),
   currentPrice: z.number().nullable(),
   unitCost: z.number().nullable(),
@@ -76,6 +95,7 @@ export const portfolioHistoryPointSchema = z.object({
 });
 
 export type DataFreshness = z.infer<typeof dataFreshnessSchema>;
+export type MainIndustry = z.infer<typeof mainIndustrySchema>;
 export type PositionSnapshot = z.infer<typeof positionSnapshotSchema>;
 export type PortfolioSnapshot = z.infer<typeof portfolioSnapshotSchema>;
 export type IndustryAllocation = z.infer<typeof industryAllocationSchema>;

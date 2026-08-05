@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import type {
   AgentRun,
+  MainIndustry,
   PortfolioHistoryPoint,
   PortfolioSnapshot,
 } from "@portfolio/domain";
+import { defaultMainIndustries } from "@portfolio/domain";
 import type {
   IndustryMarketBar,
   IndustryMembership,
@@ -12,6 +14,25 @@ import type {
 
 export type SnapshotSaveResult = "created" | "existing";
 
+export interface SecurityIndustryOverride {
+  source: string;
+  sourceAccountId: string;
+  market: string;
+  symbol: string;
+  mainIndustryId: string;
+  mainIndustryName: string;
+  color: string;
+  updatedAt: string;
+}
+
+export interface SaveIndustryOverrideInput {
+  source: string;
+  sourceAccountId: string;
+  market: string;
+  symbol: string;
+  mainIndustryId: string;
+}
+
 export interface PortfolioRepository {
   healthCheck(): Promise<void>;
   saveSnapshot(snapshot: PortfolioSnapshot): Promise<SnapshotSaveResult>;
@@ -19,6 +40,21 @@ export interface PortfolioRepository {
   getLatestSnapshot(accountId?: string): Promise<PortfolioSnapshot | null>;
   getLatestAgentRun(snapshotId: string): Promise<AgentRun | null>;
   getHistory(accountId: string, limit: number): Promise<PortfolioHistoryPoint[]>;
+  getMainIndustries(): Promise<MainIndustry[]>;
+  getIndustryOverrides(
+    source: string,
+    sourceAccountId: string,
+    securities: readonly SecurityReference[],
+  ): Promise<SecurityIndustryOverride[]>;
+  saveIndustryOverride(
+    input: SaveIndustryOverrideInput,
+  ): Promise<SecurityIndustryOverride>;
+  deleteIndustryOverride(
+    source: string,
+    sourceAccountId: string,
+    market: string,
+    symbol: string,
+  ): Promise<void>;
   saveIndustryMemberships(
     memberships: readonly IndustryMembership[],
   ): Promise<void>;
@@ -71,6 +107,7 @@ export class MemoryPortfolioRepository implements PortfolioRepository {
   private readonly runs = new Map<string, AgentRun>();
   private readonly industryMemberships = new Map<string, IndustryMembership>();
   private readonly industryBars = new Map<string, IndustryMarketBar>();
+  private readonly industryOverrides = new Map<string, SecurityIndustryOverride>();
 
   async healthCheck() {}
 
@@ -123,6 +160,55 @@ export class MemoryPortfolioRepository implements PortfolioRepository {
         totalAsset: snapshot.totalAsset,
         positionRate: snapshot.positionRate,
       }));
+  }
+
+  async getMainIndustries() {
+    return defaultMainIndustries.map((industry) => ({ ...industry }));
+  }
+
+  async getIndustryOverrides(
+    source: string,
+    sourceAccountId: string,
+    securities: readonly SecurityReference[],
+  ) {
+    const requested = new Set(
+      securities.map((security) => `${security.market}:${security.symbol}`),
+    );
+    return [...this.industryOverrides.values()].filter(
+      (override) =>
+        override.source === source &&
+        override.sourceAccountId === sourceAccountId &&
+        requested.has(`${override.market}:${override.symbol}`),
+    );
+  }
+
+  async saveIndustryOverride(input: SaveIndustryOverrideInput) {
+    const industry = defaultMainIndustries.find(
+      (candidate) => candidate.id === input.mainIndustryId,
+    );
+    if (!industry) throw new Error("主行业不存在或已停用");
+    const override: SecurityIndustryOverride = {
+      ...input,
+      mainIndustryName: industry.name,
+      color: industry.color,
+      updatedAt: new Date().toISOString(),
+    };
+    this.industryOverrides.set(
+      `${input.source}:${input.sourceAccountId}:${input.market}:${input.symbol}`,
+      override,
+    );
+    return override;
+  }
+
+  async deleteIndustryOverride(
+    source: string,
+    sourceAccountId: string,
+    market: string,
+    symbol: string,
+  ) {
+    this.industryOverrides.delete(
+      `${source}:${sourceAccountId}:${market}:${symbol}`,
+    );
   }
 
   async saveIndustryMemberships(

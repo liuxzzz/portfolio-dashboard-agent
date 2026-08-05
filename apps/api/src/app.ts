@@ -6,6 +6,7 @@ import {
 } from "@portfolio/domain";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { z } from "zod";
 import {
   EvidenceFirstAgentService,
   type PortfolioAgentService,
@@ -24,6 +25,10 @@ export interface AppOptions {
   clientOrigin?: string;
   now?: () => Date;
 }
+
+const industryOverrideRequestSchema = z.object({
+  mainIndustryId: z.string().min(1),
+});
 
 function secretsMatch(received: string | undefined, expected: string | undefined) {
   if (!received || !expected) {
@@ -65,7 +70,7 @@ export function createApp(options: AppOptions = {}) {
         process.env.WEB_ORIGIN ??
         "http://localhost:8081",
       allowHeaders: ["Content-Type", "Authorization"],
-      allowMethods: ["GET", "POST", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     }),
   );
 
@@ -139,12 +144,79 @@ export function createApp(options: AppOptions = {}) {
     const payload: DashboardPayload = {
       snapshot: industry.snapshot,
       industries: industry.industries,
+      mainIndustries: industry.mainIndustries,
       industryData: industry.industryData,
       history: await repository.getHistory(snapshot.sourceAccountId, 30),
       latestAgentRun: await repository.getLatestAgentRun(snapshot.id),
     };
 
     return context.json(dashboardPayloadSchema.parse(payload));
+  });
+
+  app.put("/v1/positions/:market/:symbol/main-industry", async (context) => {
+    const accountId = context.req.query("accountId");
+    const snapshot = await repository.getLatestSnapshot(accountId);
+    if (!snapshot) {
+      return context.json({ error: "snapshot_not_found" }, 404);
+    }
+    const market = context.req.param("market");
+    const symbol = context.req.param("symbol");
+    if (
+      !snapshot.positions.some(
+        (position) => position.market === market && position.symbol === symbol,
+      )
+    ) {
+      return context.json({ error: "position_not_found" }, 404);
+    }
+    let payload: unknown;
+    try {
+      payload = await context.req.json();
+    } catch {
+      return context.json({ error: "invalid_json" }, 400);
+    }
+    const parsed = industryOverrideRequestSchema.safeParse(payload);
+    if (!parsed.success) {
+      return context.json(
+        { error: "invalid_industry_override", issues: parsed.error.issues },
+        400,
+      );
+    }
+    const mainIndustries = await repository.getMainIndustries();
+    if (!mainIndustries.some((industry) => industry.id === parsed.data.mainIndustryId)) {
+      return context.json({ error: "main_industry_not_found" }, 400);
+    }
+    const override = await repository.saveIndustryOverride({
+      source: snapshot.source,
+      sourceAccountId: snapshot.sourceAccountId,
+      market,
+      symbol,
+      mainIndustryId: parsed.data.mainIndustryId,
+    });
+    return context.json(override);
+  });
+
+  app.delete("/v1/positions/:market/:symbol/main-industry", async (context) => {
+    const accountId = context.req.query("accountId");
+    const snapshot = await repository.getLatestSnapshot(accountId);
+    if (!snapshot) {
+      return context.json({ error: "snapshot_not_found" }, 404);
+    }
+    const market = context.req.param("market");
+    const symbol = context.req.param("symbol");
+    if (
+      !snapshot.positions.some(
+        (position) => position.market === market && position.symbol === symbol,
+      )
+    ) {
+      return context.json({ error: "position_not_found" }, 404);
+    }
+    await repository.deleteIndustryOverride(
+      snapshot.source,
+      snapshot.sourceAccountId,
+      market,
+      symbol,
+    );
+    return context.json({ restored: true });
   });
 
   app.post("/v1/industries/refresh", async (context) => {

@@ -112,14 +112,41 @@ test("enriches a portfolio from versioned SW membership and daily bars", async (
     value: 80_000,
     weight: 0.8,
     dayRate: 0.0123,
-    color: "#172033",
+    color: "#8B98A9",
   });
+  assert.deepEqual(
+    first.mainIndustries.map((industry) => industry.name),
+    ["半导体", "互联网", "智能驾驶", "商业航天", "医药", "银行"],
+  );
   assert.equal(first.industryData.status, "fresh");
 
   const second = await service.enrich(snapshot);
   assert.equal(second.industryData.status, "fresh");
   assert.equal(membershipCalls, 1);
   assert.equal(barCalls, 1);
+  await repository.saveIndustryOverride({
+    source: snapshot.source,
+    sourceAccountId: snapshot.sourceAccountId,
+    market: "SH",
+    symbol: "600000",
+    mainIndustryId: "semiconductor",
+  });
+  const customized = await service.enrich(snapshot);
+  assert.deepEqual(customized.snapshot.positions[0], {
+    ...first.snapshot.positions[0],
+    industry: "半导体",
+    sourceIndustry: "银行",
+    mainIndustryId: "semiconductor",
+    industryCustomized: true,
+  });
+  assert.deepEqual(customized.industries[0], {
+    name: "半导体",
+    code: "USER:semiconductor",
+    value: 80_000,
+    weight: 0.8,
+    dayRate: null,
+    color: "#172033",
+  });
   assert.equal(
     (await repository.getLatestSnapshot())?.positions[0]?.industry,
     null,

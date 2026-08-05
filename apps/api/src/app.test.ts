@@ -77,8 +77,9 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
   const dashboard = await app.request("/v1/dashboard");
   assert.equal(dashboard.status, 200);
   const payload = (await dashboard.json()) as {
-    snapshot: { id: string };
+    snapshot: { id: string; positions: Array<{ industry: string }> };
     industries: Array<{ name: string; weight: number }>;
+    mainIndustries: Array<{ id: string; name: string }>;
     latestAgentRun: { status: string };
   };
   assert.equal(payload.snapshot.id, snapshot.id);
@@ -91,6 +92,53 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
     color: "#172033",
   });
   assert.equal(payload.latestAgentRun.status, "completed");
+  assert.deepEqual(
+    payload.mainIndustries.map((industry) => industry.name),
+    ["半导体", "互联网", "智能驾驶", "商业航天", "医药", "银行"],
+  );
+
+  const customized = await app.request(
+    "/v1/positions/SH/600000/main-industry",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mainIndustryId: "banking" }),
+    },
+  );
+  assert.equal(customized.status, 200);
+  const customizedDashboard = await app.request("/v1/dashboard");
+  const customizedPayload = (await customizedDashboard.json()) as {
+    snapshot: {
+      positions: Array<{
+        industry: string;
+        sourceIndustry: string;
+        mainIndustryId: string;
+        industryCustomized: boolean;
+      }>;
+    };
+    industries: Array<{ name: string; color: string }>;
+  };
+  assert.deepEqual(customizedPayload.snapshot.positions[0], {
+    ...customizedPayload.snapshot.positions[0],
+    industry: "银行",
+    sourceIndustry: "金融",
+    mainIndustryId: "banking",
+    industryCustomized: true,
+  });
+  assert.equal(customizedPayload.industries[0]?.name, "银行");
+  assert.equal(customizedPayload.industries[0]?.color, "#8B98A9");
+
+  const restored = await app.request(
+    "/v1/positions/SH/600000/main-industry",
+    { method: "DELETE" },
+  );
+  assert.equal(restored.status, 200);
+  const restoredDashboard = await app.request("/v1/dashboard");
+  const restoredPayload = (await restoredDashboard.json()) as {
+    snapshot: { positions: Array<{ industry: string; industryCustomized: boolean }> };
+  };
+  assert.equal(restoredPayload.snapshot.positions[0]?.industry, "金融");
+  assert.equal(restoredPayload.snapshot.positions[0]?.industryCustomized, false);
 
   const rerun = await app.request("/v1/agent/runs", { method: "POST" });
   assert.equal(rerun.status, 201);

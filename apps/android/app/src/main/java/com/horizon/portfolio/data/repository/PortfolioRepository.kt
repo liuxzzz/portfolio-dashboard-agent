@@ -25,6 +25,17 @@ interface PortfolioRepository {
     suspend fun loadDashboard(): DashboardLoadResult
 
     suspend fun runAgent(): AgentRun
+
+    suspend fun setMainIndustry(
+        market: String,
+        symbol: String,
+        mainIndustryId: String,
+    ): DashboardLoadResult
+
+    suspend fun restoreAutomaticIndustry(
+        market: String,
+        symbol: String,
+    ): DashboardLoadResult
 }
 
 class DefaultPortfolioRepository(
@@ -75,6 +86,23 @@ class DefaultPortfolioRepository(
     }
 
     override suspend fun runAgent(): AgentRun = api.runAgent()
+
+    override suspend fun setMainIndustry(
+        market: String,
+        symbol: String,
+        mainIndustryId: String,
+    ): DashboardLoadResult {
+        api.setMainIndustry(market, symbol, mainIndustryId)
+        return loadDashboard()
+    }
+
+    override suspend fun restoreAutomaticIndustry(
+        market: String,
+        symbol: String,
+    ): DashboardLoadResult {
+        api.restoreAutomaticIndustry(market, symbol)
+        return loadDashboard()
+    }
 
     private companion object {
         const val LOG_TAG = "PortfolioData"

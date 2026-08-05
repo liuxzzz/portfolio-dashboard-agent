@@ -42,14 +42,15 @@ enum EvidenceKind {
 }
 
 model Account {
-  id              String     @id @default(cuid())
-  source          String     @db.VarChar(32)
-  sourceAccountId String     @db.VarChar(255)
-  name            String     @db.VarChar(255)
-  currency        String     @default("CNY") @db.VarChar(16)
-  createdAt       DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime   @updatedAt @db.Timestamptz(3)
-  snapshots       Snapshot[]
+  id                String                     @id @default(cuid())
+  source            String                     @db.VarChar(32)
+  sourceAccountId   String                     @db.VarChar(255)
+  name              String                     @db.VarChar(255)
+  currency          String                     @default("CNY") @db.VarChar(16)
+  createdAt         DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                   @updatedAt @db.Timestamptz(3)
+  snapshots         Snapshot[]
+  industryOverrides SecurityIndustryOverride[]
 
   @@unique([source, sourceAccountId])
   @@index([updatedAt])
@@ -160,6 +161,36 @@ model IndustryMarketBar {
   @@unique([taxonomy, industryCode, tradeDate])
   @@index([taxonomy, industryCode, tradeDate(sort: Desc)])
   @@map("industry_market_bars")
+}
+
+model MainIndustry {
+  id        String                     @id @db.VarChar(32)
+  name      String                     @unique @db.VarChar(64)
+  color     String                     @db.VarChar(16)
+  sortOrder Int
+  isActive  Boolean                    @default(true)
+  createdAt DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime                   @updatedAt @db.Timestamptz(3)
+  overrides SecurityIndustryOverride[]
+
+  @@index([isActive, sortOrder])
+  @@map("main_industries")
+}
+
+model SecurityIndustryOverride {
+  id             String       @id @default(cuid())
+  accountId      String
+  market         String       @db.VarChar(32)
+  symbol         String       @db.VarChar(64)
+  mainIndustryId String       @db.VarChar(32)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  account        Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  mainIndustry   MainIndustry @relation(fields: [mainIndustryId], references: [id], onDelete: Restrict)
+
+  @@unique([accountId, market, symbol])
+  @@index([mainIndustryId])
+  @@map("security_industry_overrides")
 }
 
 model AgentRun {

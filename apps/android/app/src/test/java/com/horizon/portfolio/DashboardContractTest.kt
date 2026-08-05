@@ -4,6 +4,7 @@ import com.horizon.portfolio.domain.model.DashboardPayload
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class DashboardContractTest {
@@ -15,8 +16,12 @@ class DashboardContractTest {
 
         assertEquals("snapshot-contract", payload.snapshot.id)
         assertEquals("600000", payload.snapshot.positions.single().symbol)
+        assertEquals("banking", payload.snapshot.positions.single().mainIndustryId)
+        assertEquals("金融", payload.snapshot.positions.single().sourceIndustry)
+        assertEquals(6, payload.mainIndustries.size)
         assertEquals("eastmoney", payload.industryData?.source)
-        assertEquals(0.0123, payload.industries.single().dayRate ?: 0.0, 0.000001)
+        assertEquals("银行", payload.industries.single().name)
+        assertNull(payload.industries.single().dayRate)
         assertEquals("attention", payload.latestAgentRun?.insights?.single()?.severity)
         assertNotNull(payload.latestAgentRun?.insights?.single()?.evidence?.single())
     }
@@ -43,7 +48,10 @@ class DashboardContractTest {
                   "symbol": "600000",
                   "name": "示例股份",
                   "market": "SH",
-                  "industry": "金融",
+                  "industry": "银行",
+                  "sourceIndustry": "金融",
+                  "mainIndustryId": "banking",
+                  "industryCustomized": true,
                   "quantity": 2000,
                   "currentPrice": 40,
                   "unitCost": 35,
@@ -56,7 +64,15 @@ class DashboardContractTest {
                   "holdingDays": 100
                 }]
               },
-              "industries": [{"name":"金融","code":"BK0475","value":80000,"weight":0.8,"dayRate":0.0123,"color":"#172033"}],
+              "mainIndustries": [
+                {"id":"semiconductor","name":"半导体","color":"#172033","sortOrder":0},
+                {"id":"internet","name":"互联网","color":"#5BC5A7","sortOrder":1},
+                {"id":"smart-driving","name":"智能驾驶","color":"#F3B45A","sortOrder":2},
+                {"id":"commercial-space","name":"商业航天","color":"#7C8BE8","sortOrder":3},
+                {"id":"healthcare","name":"医药","color":"#D96C8B","sortOrder":4},
+                {"id":"banking","name":"银行","color":"#8B98A9","sortOrder":5}
+              ],
+              "industries": [{"name":"银行","code":"USER:banking","value":80000,"weight":0.8,"dayRate":null,"color":"#8B98A9"}],
               "industryData": {
                 "taxonomy": "EASTMONEY",
                 "source": "eastmoney",
