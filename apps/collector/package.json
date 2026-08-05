@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "start": "tsx src/index.ts collect",
+    "login": "tsx src/index.ts login",
+    "collect": "tsx src/index.ts collect",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/*.test.ts src/**/*.test.ts"
   },
   "dependencies": {
     "@portfolio/domain": "workspace:*",
@@ -20,4 +23,3 @@
     "typescript": "7.0.2"
   }
 }
-

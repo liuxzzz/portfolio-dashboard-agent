@@ -17,6 +17,21 @@ export const positionSnapshotSchema = z.object({
   holdingProfit: z.number().nullable(),
   holdingProfitRate: z.number().nullable(),
   holdingDays: z.number().int().nonnegative().nullable(),
+  latestRate: z.number().nullable().optional(),
+  relatedSector: z.string().nullable().optional(),
+  sectorRate: z.number().nullable().optional(),
+  combinationProfit: z.number().nullable().optional(),
+  combinationRate: z.number().nullable().optional(),
+  cumulativeProfit: z.number().nullable().optional(),
+  cumulativeProfitRate: z.number().nullable().optional(),
+  weekProfit: z.number().nullable().optional(),
+  monthProfit: z.number().nullable().optional(),
+  yearProfit: z.number().nullable().optional(),
+  breakEvenRate: z.number().nullable().optional(),
+  oneMonthRate: z.number().nullable().optional(),
+  threeMonthRate: z.number().nullable().optional(),
+  sixMonthRate: z.number().nullable().optional(),
+  oneYearRate: z.number().nullable().optional(),
 });
 
 export const portfolioSnapshotSchema = z.object({
@@ -55,4 +70,3 @@ export type PositionSnapshot = z.infer<typeof positionSnapshotSchema>;
 export type PortfolioSnapshot = z.infer<typeof portfolioSnapshotSchema>;
 export type IndustryAllocation = z.infer<typeof industryAllocationSchema>;
 export type PortfolioHistoryPoint = z.infer<typeof portfolioHistoryPointSchema>;
-
