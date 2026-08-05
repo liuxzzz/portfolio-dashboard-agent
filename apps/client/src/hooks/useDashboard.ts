@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { demoDashboard } from "@/data/demo";
+import { demoDashboard } from "@/fixtures/demo";
 import { fetchDashboard, hasConfiguredApi } from "@/services/api";
 
 export function useDashboard() {
@@ -16,4 +16,3 @@ export function useDashboard() {
     isUsingDemo: !apiConfigured || query.isError,
   };
 }
-
