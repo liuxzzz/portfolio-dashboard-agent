@@ -2,7 +2,7 @@ import { apiEnvelopeSchema } from "./schemas.js";
 
 export class TzzbAuthenticationError extends Error {
   constructor() {
-    super("同花顺登录状态无效，请先运行 pnpm --filter @portfolio/collector login");
+    super("同花顺登录状态无效，请先运行 pnpm --filter @portfolio/collector run login");
     this.name = "TzzbAuthenticationError";
   }
 }

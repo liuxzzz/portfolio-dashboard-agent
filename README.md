@@ -72,14 +72,14 @@ EXPO_PUBLIC_API_URL=http://localhost:4000
 先复制环境变量模板，为 `INGEST_SHARED_SECRET` 设置随机值。首次使用需要在隔离的本地浏览器资料目录登录一次：
 
 ```bash
-pnpm --filter @portfolio/collector login
+pnpm --filter @portfolio/collector run login
 ```
 
 登录由用户在同花顺页面内完成；采集器不会读取、打印或上传 Cookie。完成后启动 API，再执行一次采集：
 
 ```bash
 pnpm --filter @portfolio/api dev
-pnpm --filter @portfolio/collector collect
+pnpm --filter @portfolio/collector run collect
 ```
 
 采集器默认依次读取所有股票类账户，并只在日志中输出哈希账户标识、持仓条数和数据时间，不输出股票、金额或账户正文。详细说明见 `docs/collector.md`。

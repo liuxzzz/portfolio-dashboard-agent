@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { loadCollectorConfig, loadLocalEnv } from "./config.js";
 import { publishSnapshot } from "./publisher.js";
 import { TzzbClient } from "./tzzb/client.js";
+import { assessHoldingFieldCoverage } from "./tzzb/export-contract.js";
 import {
   openInteractiveLogin,
   PlaywrightTzzbTransport,
@@ -27,8 +28,8 @@ async function main() {
     await openInteractiveLogin(transportOptions);
     return;
   }
-  if (command !== "collect") {
-    throw new Error(`未知命令：${command}；支持 login 或 collect`);
+  if (command !== "collect" && command !== "audit") {
+    throw new Error(`未知命令：${command}；支持 login、collect 或 audit`);
   }
 
   const transport = await PlaywrightTzzbTransport.create(transportOptions);
@@ -39,6 +40,24 @@ async function main() {
       rateUnit: config.rateUnit,
     });
     for (const snapshot of snapshots) {
+      if (command === "audit") {
+        console.log(
+          JSON.stringify(
+            {
+              status: "audited",
+              account: redactedAccountId(snapshot.sourceAccountId),
+              capturedAt: snapshot.capturedAt,
+              sourceSyncedAt: snapshot.sourceSyncedAt,
+              freshness: snapshot.freshness,
+              positionCount: snapshot.positions.length,
+              fieldCoverage: assessHoldingFieldCoverage(snapshot),
+            },
+            null,
+            2,
+          ),
+        );
+        continue;
+      }
       if (
         config.apiConfigured &&
         config.apiUrl &&

@@ -9,7 +9,7 @@ Cookie、验证码、券商账号和原始接口正文不会上传，也不会�
 ## 首次登录
 
 1. 从 `.env.example` 复制本地 `.env`，设置随机 `INGEST_SHARED_SECRET`。
-2. 运行 `pnpm --filter @portfolio/collector login`。
+2. 运行 `pnpm --filter @portfolio/collector run login`。
 3. 在打开的浏览器中由用户本人完成登录或验证码。
 4. 页面进入投资账本后，浏览器自动关闭；会话只保存在 `TZZB_PROFILE_DIR`。
 
@@ -28,6 +28,8 @@ Cookie、验证码、券商账号和原始接口正文不会上传，也不会�
 7. 配置 API 时，使用 Bearer Secret 上传；未配置时只验证并输出脱敏摘要。
 
 任何关键接口失败都会使本次账户采集失败，不会静默用零或旧值补齐。
+
+真实登录后可运行 `pnpm --filter @portfolio/collector run audit`。该命令不会上传快照，只输出 27 个导出字段的 `complete`、`partial`、`empty` 或 `blank-by-source` 覆盖状态和记录数，不输出股票代码、名称或金额。
 
 ## 本地配置
 

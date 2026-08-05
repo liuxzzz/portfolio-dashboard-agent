@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts collect",
     "login": "tsx src/index.ts login",
     "collect": "tsx src/index.ts collect",
+    "audit": "tsx src/index.ts audit",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/*.test.ts src/**/*.test.ts"

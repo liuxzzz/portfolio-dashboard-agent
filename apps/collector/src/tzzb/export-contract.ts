@@ -1,4 +1,12 @@
+import type { PortfolioSnapshot } from "@portfolio/domain";
+
 export type ExportFieldSource = "direct" | "calculated" | "blank-by-source";
+export type FieldCoverageStatus =
+  | "complete"
+  | "partial"
+  | "empty"
+  | "blank-by-source"
+  | "no-positions";
 
 export interface ExportFieldDefinition {
   header: string;
@@ -48,4 +56,39 @@ export function reconcileHoldingHeaders(headers: readonly string[]) {
     missing,
     unexpected,
   };
+}
+
+export function assessHoldingFieldCoverage(snapshot: PortfolioSnapshot) {
+  return holdingExportFields.map((field) => {
+    if (field.source === "blank-by-source") {
+      return {
+        header: field.header,
+        source: field.source,
+        status: "blank-by-source" as const,
+        populated: 0,
+        total: snapshot.positions.length,
+      };
+    }
+
+    const populated = snapshot.positions.filter((position) => {
+      const value = position[field.snapshotKey as keyof typeof position];
+      return value !== null && value !== undefined && value !== "";
+    }).length;
+    const status: FieldCoverageStatus =
+      snapshot.positions.length === 0
+        ? "no-positions"
+        : populated === snapshot.positions.length
+          ? "complete"
+          : populated === 0
+            ? "empty"
+            : "partial";
+
+    return {
+      header: field.header,
+      source: field.source,
+      status,
+      populated,
+      total: snapshot.positions.length,
+    };
+  });
 }

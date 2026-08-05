@@ -89,19 +89,22 @@ export async function openInteractiveLogin(options: PlaywrightTransportOptions) 
     path.resolve(options.profileDir),
     { channel: options.browserChannel, headless: false },
   );
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(`${options.baseUrl}/pc/index.html#/myAccount`, {
-    waitUntil: "domcontentloaded",
-  });
-  await waitForLoginResolution(page);
-  if (new URL(page.url()).hash.includes("unlogin")) {
-    console.log("请在打开的浏览器中完成同花顺登录；登录成功后窗口会自动关闭。 ");
-    await page.waitForURL(
-      (url) =>
-        url.hash.includes("myAccount") && !url.hash.includes("unlogin"),
+  try {
+    const page = context.pages()[0] ?? (await context.newPage());
+    const authenticatedAccountList = page.waitForResponse(
+      (response) =>
+        response.url().includes("/caishen_fund/pc/account/v1/account_list") &&
+        response.status() >= 200 &&
+        response.status() < 300,
       { timeout: 10 * 60_000 },
     );
+    await page.goto(`${options.baseUrl}/pc/index.html#/myAccount`, {
+      waitUntil: "domcontentloaded",
+    });
+    console.log("请在打开的浏览器中完成同花顺登录；登录成功后窗口会自动关闭。 ");
+    await authenticatedAccountList;
+  } finally {
+    await context.close();
   }
-  await context.close();
   console.log("本地登录会话已准备好。Cookie 仅保存在本机隔离资料目录中。 ");
 }
