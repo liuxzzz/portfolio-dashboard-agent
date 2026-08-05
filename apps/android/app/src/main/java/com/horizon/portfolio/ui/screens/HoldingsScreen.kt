@@ -34,6 +34,7 @@ import com.horizon.portfolio.ui.theme.MarketUp
 @Composable
 fun HoldingsScreen(
     snapshot: PortfolioSnapshot,
+    amountsVisible: Boolean,
     onPositionClick: (String) -> Unit,
 ) {
     LazyColumn(
@@ -74,7 +75,12 @@ fun HoldingsScreen(
                         )
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(formatCurrency(position.marketValue), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            formatCurrency(position.marketValue, visible = amountsVisible),
+                            color = Ink,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
                         Text(
                             formatPercent(position.dayProfitRate, true),
                             color = if ((position.dayProfit ?: 0.0) >= 0) MarketUp else MarketDown,

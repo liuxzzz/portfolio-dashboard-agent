@@ -111,8 +111,8 @@ fun OverviewReveal(
 fun OverviewHeader(
     accountName: String,
     sourceLabel: String,
-    isLoading: Boolean,
-    onRefresh: () -> Unit,
+    amountsVisible: Boolean,
+    onToggleAmountsVisibility: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
@@ -139,8 +139,7 @@ fun OverviewHeader(
             }
 
             IconButton(
-                onClick = onRefresh,
-                enabled = !isLoading,
+                onClick = onToggleAmountsVisibility,
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
@@ -148,12 +147,16 @@ fun OverviewHeader(
                     .border(1.dp, Border, CircleShape),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_refresh_rounded),
-                    contentDescription = "刷新组合数据",
-                    tint = if (isLoading) Muted else Ink,
-                    modifier = Modifier
-                        .size(21.dp)
-                        .graphicsLayer { rotationZ = if (isLoading) 45f else 0f },
+                    painter = painterResource(
+                        if (amountsVisible) {
+                            R.drawable.ic_visibility_rounded
+                        } else {
+                            R.drawable.ic_visibility_off_rounded
+                        },
+                    ),
+                    contentDescription = if (amountsVisible) "隐藏金额" else "显示金额",
+                    tint = Ink,
+                    modifier = Modifier.size(21.dp),
                 )
             }
         }
@@ -247,6 +250,7 @@ fun PortfolioHeroCard(
     sourceSyncedAt: String?,
     animationKey: String,
     playAnimation: Boolean,
+    amountsVisible: Boolean,
 ) {
     val isPositive = (dayProfit ?: 0.0) >= 0.0
     val profitColor = if (isPositive) MarketUpOnDark else MarketDownOnDark
@@ -293,6 +297,7 @@ fun PortfolioHeroCard(
                 value = totalAsset,
                 animationKey = animationKey,
                 playAnimation = playAnimation,
+                amountsVisible = amountsVisible,
                 modifier = Modifier.padding(top = 14.dp),
             )
 
@@ -325,7 +330,7 @@ fun PortfolioHeroCard(
                     }
                 }
                 Text(
-                    text = "今日 ${formatCurrency(dayProfit, true)}",
+                    text = "今日 ${formatCurrency(dayProfit, true, amountsVisible)}",
                     color = HeroMuted,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -365,6 +370,7 @@ private fun AnimatedCurrencyText(
     value: Double,
     animationKey: String,
     playAnimation: Boolean,
+    amountsVisible: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val animated = remember(animationKey, playAnimation) {
@@ -382,7 +388,7 @@ private fun AnimatedCurrencyText(
         }
     }
     Text(
-        text = formatCurrency(animated.value.toDouble()),
+        text = formatCurrency(animated.value.toDouble(), visible = amountsVisible),
         color = Color.White,
         fontSize = 36.sp,
         fontWeight = FontWeight.ExtraBold,
@@ -495,12 +501,13 @@ fun OverviewMetricRow(
     stockMarketValue: Double,
     cash: Double,
     positionCount: Int,
+    amountsVisible: Boolean,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OverviewMetricCard(
             iconRes = R.drawable.ic_monitoring_rounded,
             label = "股票市值",
-            value = formatCurrency(stockMarketValue),
+            value = formatCurrency(stockMarketValue, visible = amountsVisible),
             note = "$positionCount 只持仓",
             iconColor = Indigo,
             iconBackground = Indigo.copy(alpha = 0.11f),
@@ -509,7 +516,7 @@ fun OverviewMetricRow(
         OverviewMetricCard(
             iconRes = R.drawable.ic_savings_rounded,
             label = "可用现金",
-            value = formatCurrency(cash),
+            value = formatCurrency(cash, visible = amountsVisible),
             note = "流动资金",
             iconColor = Gold,
             iconBackground = Gold.copy(alpha = 0.14f),
@@ -772,6 +779,7 @@ fun TopHoldingsCard(
     positions: List<PositionSnapshot>,
     animationKey: String,
     playAnimation: Boolean,
+    amountsVisible: Boolean,
 ) {
     OverviewSectionCard {
         OverviewSectionHeader(
@@ -790,6 +798,7 @@ fun TopHoldingsCard(
                     animationKey = "$animationKey-${position.symbol}",
                     delayMillis = index * 70,
                     playAnimation = playAnimation,
+                    amountsVisible = amountsVisible,
                 )
             }
         }
@@ -803,6 +812,7 @@ private fun HoldingConcentrationRow(
     animationKey: String,
     delayMillis: Int,
     playAnimation: Boolean,
+    amountsVisible: Boolean,
 ) {
     val target = (position.portfolioWeight ?: 0.0).toFloat().coerceIn(0f, 1f)
     val progress = remember(animationKey, playAnimation) {
@@ -852,7 +862,7 @@ private fun HoldingConcentrationRow(
                     fontWeight = FontWeight.ExtraBold,
                 )
                 Text(
-                    text = formatCurrency(position.marketValue),
+                    text = formatCurrency(position.marketValue, visible = amountsVisible),
                     color = Muted,
                     fontSize = 10.sp,
                     modifier = Modifier.padding(top = 2.dp),

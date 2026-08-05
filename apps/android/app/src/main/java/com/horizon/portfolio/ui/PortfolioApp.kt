@@ -1,5 +1,9 @@
 package com.horizon.portfolio.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -13,6 +17,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -28,6 +35,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.horizon.portfolio.PortfolioApplication
 import com.horizon.portfolio.R
+import com.horizon.portfolio.ui.components.PortfolioSplashScreen
 import com.horizon.portfolio.ui.screens.AgentScreen
 import com.horizon.portfolio.ui.screens.HoldingsScreen
 import com.horizon.portfolio.ui.screens.OverviewScreen
@@ -57,8 +65,37 @@ fun PortfolioApp() {
         factory = DashboardViewModel.factory(application.container.portfolioRepository),
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val dashboard = state.dashboard
+    var amountsVisible by rememberSaveable { mutableStateOf(false) }
+    var splashVisible by rememberSaveable { mutableStateOf(true) }
 
+    Box(modifier = Modifier.fillMaxSize()) {
+        PortfolioContent(
+            state = state,
+            viewModel = viewModel,
+            amountsVisible = amountsVisible,
+            onToggleAmountsVisibility = { amountsVisible = !amountsVisible },
+        )
+        AnimatedVisibility(
+            visible = splashVisible,
+            enter = EnterTransition.None,
+            exit = fadeOut(animationSpec = tween(180)),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            PortfolioSplashScreen(
+                onAnimationFinished = { splashVisible = false },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PortfolioContent(
+    state: DashboardUiState,
+    viewModel: DashboardViewModel,
+    amountsVisible: Boolean,
+    onToggleAmountsVisibility: () -> Unit,
+) {
+    val dashboard = state.dashboard
     if (dashboard == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             if (state.isLoading) {
@@ -126,11 +163,17 @@ fun PortfolioApp() {
             modifier = Modifier.padding(innerPadding),
         ) {
             composable("overview") {
-                OverviewScreen(state = state, onRefresh = viewModel::refresh)
+                OverviewScreen(
+                    state = state,
+                    amountsVisible = amountsVisible,
+                    onToggleAmountsVisibility = onToggleAmountsVisibility,
+                    onRefresh = viewModel::refresh,
+                )
             }
             composable("holdings") {
                 HoldingsScreen(
                     snapshot = dashboard.snapshot,
+                    amountsVisible = amountsVisible,
                     onPositionClick = { symbol -> navController.navigate("position/$symbol") },
                 )
             }
@@ -146,6 +189,7 @@ fun PortfolioApp() {
                 PositionDetailScreen(
                     snapshot = dashboard.snapshot,
                     symbol = entry.arguments?.getString("symbol").orEmpty(),
+                    amountsVisible = amountsVisible,
                     mainIndustries = dashboard.mainIndustries,
                     isSavingIndustry = state.savingIndustrySymbol == entry.arguments?.getString("symbol"),
                     message = state.message,

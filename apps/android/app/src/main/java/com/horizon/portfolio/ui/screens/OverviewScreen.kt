@@ -30,6 +30,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun OverviewScreen(
     state: DashboardUiState,
+    amountsVisible: Boolean,
+    onToggleAmountsVisibility: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     val dashboard = requireNotNull(state.dashboard)
@@ -62,8 +64,8 @@ fun OverviewScreen(
             OverviewHeader(
                 accountName = snapshot.accountName,
                 sourceLabel = sourceLabel,
-                isLoading = state.isLoading,
-                onRefresh = onRefresh,
+                amountsVisible = amountsVisible,
+                onToggleAmountsVisibility = onToggleAmountsVisibility,
             )
         }
 
@@ -89,6 +91,7 @@ fun OverviewScreen(
                     sourceSyncedAt = snapshot.sourceSyncedAt,
                     animationKey = snapshot.id,
                     playAnimation = playIntroAnimation,
+                    amountsVisible = amountsVisible,
                 )
             }
         }
@@ -103,6 +106,7 @@ fun OverviewScreen(
                     stockMarketValue = snapshot.stockMarketValue,
                     cash = snapshot.cash,
                     positionCount = snapshot.positions.size,
+                    amountsVisible = amountsVisible,
                 )
             }
         }
@@ -147,6 +151,7 @@ fun OverviewScreen(
                     positions = topPositions,
                     animationKey = snapshot.id,
                     playAnimation = playIntroAnimation,
+                    amountsVisible = amountsVisible,
                 )
             }
         }

@@ -47,6 +47,7 @@ import com.horizon.portfolio.ui.theme.Success
 fun PositionDetailScreen(
     snapshot: PortfolioSnapshot,
     symbol: String,
+    amountsVisible: Boolean,
     mainIndustries: List<MainIndustry>,
     isSavingIndustry: Boolean,
     message: String?,
@@ -215,7 +216,7 @@ fun PositionDetailScreen(
         ) {
             Text("最新价", color = Color(0xFFAEB7C7), fontSize = 12.sp)
             Text(
-                formatCurrency(position.currentPrice),
+                formatCurrency(position.currentPrice, visible = amountsVisible),
                 color = Color.White,
                 fontSize = 34.sp,
                 fontWeight = FontWeight.ExtraBold,
@@ -232,20 +233,20 @@ fun PositionDetailScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MetricCard(
                 "持有金额",
-                formatCurrency(position.marketValue),
+                formatCurrency(position.marketValue, visible = amountsVisible),
                 formatPercent(position.portfolioWeight),
                 Modifier.weight(1f),
             )
             MetricCard(
                 "持有盈亏",
-                formatCurrency(position.holdingProfit, true),
+                formatCurrency(position.holdingProfit, true, amountsVisible),
                 formatPercent(position.holdingProfitRate, true),
                 Modifier.weight(1f),
             )
         }
         MetricCard(
             "单位成本",
-            formatCurrency(position.unitCost),
+            formatCurrency(position.unitCost, visible = amountsVisible),
             "${position.holdingDays ?: "—"} 个持仓日",
             Modifier.fillMaxWidth(),
         )

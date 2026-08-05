@@ -174,7 +174,12 @@ fun Sparkline(values: List<Double>, modifier: Modifier = Modifier) {
     }
 }
 
-fun formatCurrency(value: Double?, showSign: Boolean = false): String {
+fun formatCurrency(
+    value: Double?,
+    showSign: Boolean = false,
+    visible: Boolean = true,
+): String {
+    if (!visible) return "••••••"
     if (value == null || value.isNaN()) return "—"
     val sign = if (showSign && value > 0) "+" else ""
     val formatter = NumberFormat.getNumberInstance(Locale.SIMPLIFIED_CHINESE).apply {
