@@ -10,13 +10,12 @@ flowchart LR
     D --> E["PostgreSQL 18\nPrisma 不可变快照仓储"]
     E --> F["Agent Core\n规则与证据"]
     F --> D
-    D --> G["Expo 通用客户端"]
-    G --> H["Web"]
-    G --> I["iOS"]
-    G --> J["Android"]
+    D --> G["Android 原生客户端\nKotlin + Compose"]
+    G --> H["Room 本地缓存"]
+    G --> I["通知 / 生物识别 / 后台任务"]
 ```
 
-客户端是一套代码，不是三个独立前端：路由、组件、图表、请求层和数据契约全部共享；只有构建产物按平台区分。
+Android 客户端只负责显示、离线缓存和用户交互。采集凭证、模型密钥、Agent 工具编排与数据写入权限不会进入 APK。
 
 ## 组件职责
 
@@ -44,12 +43,18 @@ flowchart LR
 - 模型能力未来作为解释层接入，不改变证据与运行记录结构。
 - 不产生自动下单指令。
 
-### Universal Client
+### Android Client
 
-- Expo Router 同时支持 Web、iOS、Android。
-- 第一屏展示总资产、股票市值、现金、仓位和数据新鲜度。
-- 行业与个股暴露使用跨端 SVG 图表，持仓可进入详情追溯来源。
-- API 不可用或尚未配置时使用明确标注的虚构演示数据。
+- Kotlin + Jetpack Compose 实现原生界面，Navigation 管理概览、持仓、Agent 和详情路由。
+- ViewModel 暴露单向 UI 状态；数据仓储优先请求 API，失败时读取 Room，最后回退到明确标注的虚构演示数据。
+- Debug 构建允许访问本机 HTTP 服务；Release 禁止明文流量，生产地址必须使用 HTTPS。
+- 第一阶段只读；未来的敏感动作必须通过后端授权，并在设备侧进行明确确认或生物识别。
+
+### Agent Backend
+
+- `PortfolioAgentService` 是编排边界，当前调用确定性 evidence-first 规则核心。
+- `POST /v1/agent/runs` 允许客户端基于最新快照重新分析；运行结果写入仓储后由看板返回。
+- 将来接入模型时只能解释已登记证据，不能直接读取 Collector 会话或执行交易。
 
 ## 数据新鲜度
 

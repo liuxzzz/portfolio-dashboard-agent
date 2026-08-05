@@ -32,3 +32,9 @@
 `GET /v1/agent/runs/latest?accountId=<optional>`
 
 返回结构化观察、证据、置信度、运行时间和免责声明。
+
+## 重新运行 Agent
+
+`POST /v1/agent/runs?accountId=<optional>`
+
+基于该账户的最新快照重新执行 evidence-first 分析，保存并返回新的结构化 Agent Run。暂无快照时返回 `404`。当前只生成带证据的风险观察，不调用交易工具。

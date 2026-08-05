@@ -1,4 +1,3 @@
 /// <reference types="expo/types" />
 
-// Expo Router generates typed route declarations in .expo/types.
-
+// NOTE: This file should not be edited and should be in your git ignore

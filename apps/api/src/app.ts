@@ -1,5 +1,4 @@
 import { timingSafeEqual } from "node:crypto";
-import { analyzePortfolio } from "@portfolio/agent-core";
 import {
   dashboardPayloadSchema,
   portfolioSnapshotSchema,
@@ -9,6 +8,10 @@ import {
 } from "@portfolio/domain";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import {
+  EvidenceFirstAgentService,
+  type PortfolioAgentService,
+} from "./agent-service.js";
 import {
   MemoryPortfolioRepository,
   type PortfolioRepository,
@@ -25,8 +28,9 @@ const industryColors = [
 
 export interface AppOptions {
   repository?: PortfolioRepository;
+  agentService?: PortfolioAgentService;
   ingestSharedSecret?: string;
-  webOrigin?: string;
+  clientOrigin?: string;
   now?: () => Date;
 }
 
@@ -71,6 +75,7 @@ function aggregateIndustries(snapshot: PortfolioSnapshot): IndustryAllocation[] 
 
 export function createApp(options: AppOptions = {}) {
   const repository = options.repository ?? new MemoryPortfolioRepository();
+  const agentService = options.agentService ?? new EvidenceFirstAgentService();
   const now = options.now ?? (() => new Date());
   const expectedSecret =
     options.ingestSharedSecret ?? process.env.INGEST_SHARED_SECRET;
@@ -80,7 +85,8 @@ export function createApp(options: AppOptions = {}) {
     "/*",
     cors({
       origin:
-        options.webOrigin ??
+        options.clientOrigin ??
+        process.env.CLIENT_ORIGIN ??
         process.env.WEB_ORIGIN ??
         "http://localhost:8081",
       allowHeaders: ["Content-Type", "Authorization"],
@@ -130,7 +136,7 @@ export function createApp(options: AppOptions = {}) {
     const saveResult = await repository.saveSnapshot(parsed.data);
     let run = await repository.getLatestAgentRun(parsed.data.id);
     if (saveResult === "created" || !run) {
-      run = analyzePortfolio(parsed.data, now());
+      run = await agentService.run(parsed.data, now());
       await repository.saveAgentRun(run);
     }
 
@@ -176,6 +182,18 @@ export function createApp(options: AppOptions = {}) {
     }
 
     return context.json(run);
+  });
+
+  app.post("/v1/agent/runs", async (context) => {
+    const accountId = context.req.query("accountId");
+    const snapshot = await repository.getLatestSnapshot(accountId);
+    if (!snapshot) {
+      return context.json({ error: "snapshot_not_found" }, 404);
+    }
+
+    const run = await agentService.run(snapshot, now());
+    await repository.saveAgentRun(run);
+    return context.json(run, 201);
   });
 
   return app;

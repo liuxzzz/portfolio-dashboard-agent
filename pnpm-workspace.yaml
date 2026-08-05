@@ -1,5 +1,6 @@
 packages:
-  - "apps/*"
+  - "apps/api"
+  - "apps/collector"
   - "packages/*"
 allowBuilds:
   '@prisma/engines': true

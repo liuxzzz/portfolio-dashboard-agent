@@ -89,4 +89,21 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
     color: "#172033",
   });
   assert.equal(payload.latestAgentRun.status, "completed");
+
+  const rerun = await app.request("/v1/agent/runs", { method: "POST" });
+  assert.equal(rerun.status, 201);
+  const rerunPayload = (await rerun.json()) as {
+    snapshotId: string;
+    status: string;
+    insights: unknown[];
+  };
+  assert.equal(rerunPayload.snapshotId, snapshot.id);
+  assert.equal(rerunPayload.status, "completed");
+  assert.ok(rerunPayload.insights.length > 0);
+});
+
+test("manual Agent run requires an existing snapshot", async () => {
+  const app = createApp({ ingestSharedSecret: "test-secret" });
+  const response = await app.request("/v1/agent/runs", { method: "POST" });
+  assert.equal(response.status, 404);
 });

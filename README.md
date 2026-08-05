@@ -1,11 +1,11 @@
 # Portfolio Dashboard Agent
 
-一个以“本地只读采集 + 标准化快照 + 证据优先分析”为核心的个人持仓产品。Web、iOS 和 Android 使用同一套 Expo/React Native 代码。
+一个以“Android 原生体验 + 本地只读采集 + 标准化快照 + 证据优先分析”为核心的个人持仓产品。正式客户端使用 Kotlin 与 Jetpack Compose，Agent 编排和敏感凭证留在后端。
 
 ## 已完成的基础能力
 
-- 通用客户端：概览、持仓列表、个股详情、Agent 观察四类界面。
-- 跨端构建：同一套路由、组件和业务逻辑导出 Web、iOS、Android。
+- Android 原生客户端：概览、持仓列表、个股详情、Agent 观察四类 Compose 界面。
+- 移动数据层：HTTP API、ViewModel 单向状态流、Room 缓存和明确标注的演示回退。
 - 统一数据契约：账户快照、持仓、行业分布、历史曲线、Agent 运行结果。
 - 证据优先 Agent：先用确定性规则检查数据新鲜度、集中度和现金缓冲。
 - 快照 API：鉴权接收快照，生成分析结果，并向客户端提供聚合看板。
@@ -17,10 +17,8 @@
 
 ## 技术栈
 
-- Monorepo：pnpm + TypeScript
-- Web / iOS / Android：Expo Router + React Native Web
-- 状态与请求：TanStack Query
-- 图表：React Native SVG
+- Android：Kotlin 2.3、Jetpack Compose、Navigation、Room
+- 后端 Monorepo：pnpm + TypeScript
 - API：Hono + Zod + Prisma ORM
 - 数据库：PostgreSQL 18
 - Agent：独立的 evidence-first 规则核心，可在后续接入模型
@@ -31,7 +29,8 @@
 
 ```text
 apps/
-  client/       Web、iOS、Android 共用的产品客户端
+  android/      正式 Kotlin / Jetpack Compose Android 客户端
+  client/       仅保留作迁移参考的旧 Expo 客户端，不参与构建
   api/          快照接收、聚合查询和 Agent 运行 API
   collector/    仅在用户设备运行的只读采集器
 packages/
@@ -56,23 +55,15 @@ pnpm db:up
 pnpm db:deploy
 ```
 
-在两个终端分别启动 API 和客户端：
+启动 API：
 
 ```bash
 pnpm --filter @portfolio/api dev
 ```
 
-```bash
-pnpm --filter @portfolio/client dev
-```
+本地 PostgreSQL 使用 `127.0.0.1:5433`，避免与电脑上常见的 5432 端口冲突。随后用 Android Studio 打开 `apps/android`，启动模拟器并运行 `app`。模拟器默认通过 `http://10.0.2.2:4000` 访问宿主机 API；没有快照或后端不可用时会明确显示虚构演示数据。
 
-本地 PostgreSQL 使用 `127.0.0.1:5433`，避免与电脑上常见的 5432 端口冲突。Expo 启动后可在浏览器、iOS Simulator 或 Android Emulator 打开同一个应用。客户端未配置 API 时会明确显示“演示数据”。
-
-然后在 `apps/client/.env` 设置：
-
-```text
-EXPO_PUBLIC_API_URL=http://localhost:4000
-```
+完整的 Android Studio、JDK、SDK、模拟器和真机配置见 [`docs/android-development.md`](docs/android-development.md)。技术选型依据见 [`docs/mobile-platform-decision.md`](docs/mobile-platform-decision.md)。
 
 常用数据库操作：
 
@@ -109,9 +100,9 @@ pnpm --filter @portfolio/collector run collect
 pnpm typecheck
 pnpm test
 TEST_DATABASE_URL='postgresql://portfolio:portfolio@127.0.0.1:5433/portfolio?schema=public' pnpm --filter @portfolio/api test
-pnpm build:web
-pnpm build:ios
-pnpm build:android
+pnpm android:test
+pnpm android:lint
+pnpm android:assemble
 ```
 
 ## 安全边界
@@ -129,5 +120,5 @@ pnpm build:android
 
 1. 使用同一账户刚刚生成的新导出，完成真实响应与导出的逐值对账。
 2. 验证港股汇率、当日有买卖和非空清仓记录等边界情况。
-3. 加入用户登录、设备绑定、字段级加密、备份与每日调度。
-4. 增加快照变化分析、通知渠道和数据保留策略。
+3. 加入用户登录、设备绑定、生物识别门禁、字段级加密、备份与每日调度。
+4. 增加快照变化分析、WorkManager 后台同步和 Android 通知渠道。
