@@ -7,10 +7,12 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@hono/node-server": "2.1.0",
+    "@portfolio/agent-core": "workspace:*",
     "@portfolio/domain": "workspace:*",
     "drizzle-orm": "0.45.2",
     "hono": "4.13.0",
@@ -23,4 +25,3 @@
     "typescript": "7.0.2"
   }
 }
-

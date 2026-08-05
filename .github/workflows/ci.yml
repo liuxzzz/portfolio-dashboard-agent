@@ -21,6 +21,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @portfolio/client exec expo install --check
       - run: pnpm typecheck
+      - run: pnpm test
       - run: pnpm build
-
+      - run: pnpm build:ios
+      - run: pnpm build:android

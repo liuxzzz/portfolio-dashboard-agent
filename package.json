@@ -2,7 +2,7 @@
   "name": "portfolio-dashboard-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "Private portfolio snapshot collector and responsive dashboard.",
+  "description": "Private portfolio collector, evidence-first agent and universal dashboard.",
   "packageManager": "pnpm@11.9.0",
   "engines": {
     "node": ">=22"
@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "pnpm --parallel --filter './apps/*' dev",
     "build": "pnpm -r --if-present build",
+    "build:web": "pnpm --filter @portfolio/client build:web",
+    "build:ios": "pnpm --filter @portfolio/client build:ios",
+    "build:android": "pnpm --filter @portfolio/client build:android",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test"
   },
@@ -19,4 +22,3 @@
     "typescript": "7.0.2"
   }
 }
-

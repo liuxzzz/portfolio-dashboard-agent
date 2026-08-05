@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "持仓仪表盘",
+    "slug": "portfolio-dashboard-agent",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "portfolioagent",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.liuxzzz.portfolioagent"
+    },
+    "android": {
+      "package": "com.liuxzzz.portfolioagent"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
+
