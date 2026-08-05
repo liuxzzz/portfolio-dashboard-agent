@@ -7,16 +7,22 @@ const optionalText = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.string().optional(),
 );
+const optionalUrl = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.url().optional(),
+);
 
 const envSchema = z.object({
   TZZB_BASE_URL: z.url().default("https://tzzb.10jqka.com.cn"),
   TZZB_PROFILE_DIR: optionalText,
   TZZB_BROWSER_CHANNEL: z.string().default("chrome"),
+  TZZB_CHROME_EXECUTABLE: optionalText,
   TZZB_HEADLESS: z.enum(["true", "false"]).default("true"),
   TZZB_USER_ID: optionalText,
   TZZB_ACCOUNT_IDS: optionalText,
   TZZB_RATE_UNIT: z.enum(["percent", "decimal"]).default("percent"),
-  PORTFOLIO_API_URL: z.url().optional(),
+  TZZB_CDP_URL: optionalUrl,
+  PORTFOLIO_API_URL: optionalUrl,
   INGEST_SHARED_SECRET: optionalText,
 });
 
@@ -49,6 +55,7 @@ export function loadCollectorConfig(env: NodeJS.ProcessEnv = process.env) {
       parsed.TZZB_PROFILE_DIR ??
       path.resolve(process.cwd(), "browser-profile", "tzzb"),
     browserChannel: parsed.TZZB_BROWSER_CHANNEL,
+    chromeExecutable: parsed.TZZB_CHROME_EXECUTABLE,
     headless: parsed.TZZB_HEADLESS === "true",
     userId: parsed.TZZB_USER_ID,
     accountIds: parsed.TZZB_ACCOUNT_IDS
@@ -56,6 +63,7 @@ export function loadCollectorConfig(env: NodeJS.ProcessEnv = process.env) {
       .map((value) => value.trim())
       .filter(Boolean),
     rateUnit: parsed.TZZB_RATE_UNIT,
+    cdpUrl: parsed.TZZB_CDP_URL,
     apiConfigured,
     apiUrl: parsed.PORTFOLIO_API_URL,
     ingestSharedSecret: parsed.INGEST_SHARED_SECRET,

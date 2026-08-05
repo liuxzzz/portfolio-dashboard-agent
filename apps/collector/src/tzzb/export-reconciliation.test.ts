@@ -3,7 +3,10 @@ import test from "node:test";
 import type { PortfolioSnapshot, PositionSnapshot } from "@portfolio/domain";
 import { holdingExportFields } from "./export-contract.js";
 import { reconcileHoldingExport } from "./export-reconciliation.js";
-import { parseHoldingExportRows } from "./export-workbook.js";
+import {
+  parseExportNumber,
+  parseHoldingExportRows,
+} from "./export-workbook.js";
 
 const position = {
   symbol: "000001",
@@ -73,6 +76,12 @@ test("parses holding rows and excludes the account summary row", () => {
   assert.equal(exported.positions.length, 1);
   assert.equal(exported.positions[0]?.symbol, "000001");
   assert.equal(exported.ignoredSummaryRows, 1);
+});
+
+test("preserves empty numeric spreadsheet cells as blanks", () => {
+  assert.equal(parseExportNumber(""), null);
+  assert.equal(parseExportNumber("0"), 0);
+  assert.equal(parseExportNumber("12.5"), 12.5);
 });
 
 test("reconciles all 27 fields without returning portfolio values", () => {

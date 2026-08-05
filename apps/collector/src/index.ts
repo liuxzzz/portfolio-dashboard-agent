@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { loadCollectorConfig, loadLocalEnv } from "./config.js";
 import { publishSnapshot } from "./publisher.js";
+import {
+  readLocalSessionState,
+  writeLocalSessionState,
+} from "./session-state.js";
 import { TzzbClient } from "./tzzb/client.js";
 import { assessHoldingFieldCoverage } from "./tzzb/export-contract.js";
 import {
@@ -9,9 +13,10 @@ import {
 } from "./tzzb/export-reconciliation.js";
 import { readHoldingExport } from "./tzzb/export-workbook.js";
 import {
+  connectInteractiveTzzbSession,
   openInteractiveLogin,
-  PlaywrightTzzbTransport,
-} from "./tzzb/playwright-transport.js";
+} from "./tzzb/interactive-session.js";
+import { PlaywrightTzzbTransport } from "./tzzb/playwright-transport.js";
 
 function redactedAccountId(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 10);
@@ -29,16 +34,25 @@ async function main() {
   loadLocalEnv();
   const command = process.argv[2] ?? "collect";
   const config = loadCollectorConfig();
+  const localSessionState = await readLocalSessionState(config.profileDir);
   const transportOptions = {
     baseUrl: config.baseUrl,
     profileDir: config.profileDir,
     browserChannel: config.browserChannel,
     headless: config.headless,
-    userId: config.userId,
+    userId: config.userId ?? localSessionState?.userId,
   };
 
   if (command === "login") {
-    await openInteractiveLogin(transportOptions);
+    const session = await openInteractiveLogin({
+      baseUrl: config.baseUrl,
+      profileDir: config.profileDir,
+      chromeExecutable: config.chromeExecutable,
+    });
+    await writeLocalSessionState(config.profileDir, {
+      userId: session.userId,
+    });
+    console.log("本地登录会话已准备好。Cookie 仅保存在本机隔离资料目录中。");
     return;
   }
   if (
@@ -59,7 +73,21 @@ async function main() {
       ? await readHoldingExport(exportPath)
       : undefined;
 
-  const transport = await PlaywrightTzzbTransport.create(transportOptions);
+  const transport = config.cdpUrl
+    ? await connectInteractiveTzzbSession({
+        baseUrl: config.baseUrl,
+        cdpUrl: config.cdpUrl,
+      }).then(async (session) => {
+        await writeLocalSessionState(config.profileDir, {
+          userId: session.userId,
+        });
+        return PlaywrightTzzbTransport.attach(
+          session.context,
+          { ...transportOptions, userId: session.userId },
+          async () => session.browser.close(),
+        );
+      })
+    : await PlaywrightTzzbTransport.create(transportOptions);
   const client = new TzzbClient(transport);
   try {
     const snapshots = await client.collect({

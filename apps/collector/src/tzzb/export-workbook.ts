@@ -39,6 +39,10 @@ function exportCell(value: unknown): ExportCell {
   throw new Error("导出文件包含无法识别的单元格类型");
 }
 
+export function parseExportNumber(value: string) {
+  return value === "" ? null : Number(value);
+}
+
 export function parseHoldingExportRows(
   rows: readonly (readonly unknown[])[],
 ): HoldingExport {
@@ -87,6 +91,8 @@ export function parseHoldingExportRows(
 }
 
 export async function readHoldingExport(filePath: string) {
-  const rows = await readSheet(filePath, "持仓数据");
+  const rows = await readSheet(filePath, "持仓数据", {
+    parseNumber: parseExportNumber,
+  });
   return parseHoldingExportRows(rows);
 }

@@ -63,6 +63,6 @@ flowchart LR
 ## 后续替换点
 
 - `MemoryPortfolioRepository` → PostgreSQL/Drizzle 不可变快照仓储。
-- Collector 占位实现 → 本地授权会话采集与字段对账。
+- Collector 当前实现 → 每日调度、登录失效提醒与更多账户边界验证。
 - Bearer Secret → 用户登录、设备绑定和短期上传令牌。
 - 本地确定性规则 → 规则编排 + 模型解释 + 通知渠道。

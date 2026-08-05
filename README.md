@@ -22,7 +22,7 @@
 - 图表：React Native SVG
 - API：Hono + Zod
 - Agent：独立的 evidence-first 规则核心，可在后续接入模型
-- 本地采集器：Node.js，后续在用户授权的登录会话中读取只读接口
+- 本地采集器：Node.js，在用户授权的登录会话中读取只读接口
 - CI：GitHub Actions
 
 ## 目录
@@ -75,7 +75,7 @@ EXPO_PUBLIC_API_URL=http://localhost:4000
 pnpm --filter @portfolio/collector run login
 ```
 
-登录由用户在同花顺页面内完成；采集器不会读取、打印或上传 Cookie。完成后启动 API，再执行一次采集：
+登录由用户在普通 Chrome 页面内完成；识别成功后登录窗口自动关闭。采集器不会打印或上传 Cookie，本地会话标识以仅用户可读权限保存。完成后启动 API，再执行一次采集：
 
 ```bash
 pnpm --filter @portfolio/api dev
@@ -109,7 +109,7 @@ pnpm build:android
 
 ## 下一阶段
 
-1. 在本地登录会话中完成一次真实响应与同一时刻导出的逐值对账。
+1. 使用同一账户刚刚生成的新导出，完成真实响应与导出的逐值对账。
 2. 验证港股汇率、当日有买卖和非空清仓记录等边界情况。
 3. 将内存仓储替换为 PostgreSQL 不可变快照。
 4. 加入用户登录、设备绑定、加密与每日调度。

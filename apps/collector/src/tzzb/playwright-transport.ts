@@ -1,5 +1,5 @@
 import path from "node:path";
-import { chromium, type BrowserContext, type Page } from "playwright";
+import { chromium, type BrowserContext } from "playwright";
 import {
   TzzbAuthenticationError,
   type TzzbTransport,
@@ -15,23 +15,11 @@ export interface PlaywrightTransportOptions {
   userId: string | undefined;
 }
 
-function isLoginResolutionUrl(url: URL) {
-  return (
-    url.hash.includes("unlogin") ||
-    /\/myAccount\/a\//.test(url.hash)
-  );
-}
-
-async function waitForLoginResolution(page: Page) {
-  await page
-    .waitForURL((url) => isLoginResolutionUrl(url), { timeout: 10_000 })
-    .catch(() => undefined);
-}
-
 export class PlaywrightTzzbTransport implements TzzbTransport {
   private constructor(
     private readonly context: BrowserContext,
     private readonly options: PlaywrightTransportOptions,
+    private readonly closeTransport: () => Promise<void>,
   ) {}
 
   static async create(options: PlaywrightTransportOptions) {
@@ -42,16 +30,19 @@ export class PlaywrightTzzbTransport implements TzzbTransport {
         headless: options.headless,
       },
     );
-    const page = context.pages()[0] ?? (await context.newPage());
-    await page.goto(`${options.baseUrl}/pc/index.html#/myAccount`, {
-      waitUntil: "domcontentloaded",
-    });
-    await waitForLoginResolution(page);
-    if (new URL(page.url()).hash.includes("unlogin")) {
-      await context.close();
-      throw new TzzbAuthenticationError();
-    }
-    return new PlaywrightTzzbTransport(context, options);
+    return new PlaywrightTzzbTransport(
+      context,
+      options,
+      async () => context.close(),
+    );
+  }
+
+  static attach(
+    context: BrowserContext,
+    options: PlaywrightTransportOptions,
+    closeTransport: () => Promise<void>,
+  ) {
+    return new PlaywrightTzzbTransport(context, options, closeTransport);
   }
 
   async post(pathname: string, params: Record<string, string>) {
@@ -80,31 +71,6 @@ export class PlaywrightTzzbTransport implements TzzbTransport {
   }
 
   async close() {
-    await this.context.close();
+    await this.closeTransport();
   }
-}
-
-export async function openInteractiveLogin(options: PlaywrightTransportOptions) {
-  const context = await chromium.launchPersistentContext(
-    path.resolve(options.profileDir),
-    { channel: options.browserChannel, headless: false },
-  );
-  try {
-    const page = context.pages()[0] ?? (await context.newPage());
-    const authenticatedAccountList = page.waitForResponse(
-      (response) =>
-        response.url().includes("/caishen_fund/pc/account/v1/account_list") &&
-        response.status() >= 200 &&
-        response.status() < 300,
-      { timeout: 10 * 60_000 },
-    );
-    await page.goto(`${options.baseUrl}/pc/index.html#/myAccount`, {
-      waitUntil: "domcontentloaded",
-    });
-    console.log("请在打开的浏览器中完成同花顺登录；登录成功后窗口会自动关闭。 ");
-    await authenticatedAccountList;
-  } finally {
-    await context.close();
-  }
-  console.log("本地登录会话已准备好。Cookie 仅保存在本机隔离资料目录中。 ");
 }

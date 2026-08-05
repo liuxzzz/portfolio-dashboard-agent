@@ -2,7 +2,7 @@
 
 ## 作用
 
-Collector 在用户设备上运行，通过隔离的 Chromium/Chrome 资料目录保留用户主动建立的同花顺登录会话。它调用网页当前使用的同源只读接口，在内存中完成字段标准化，再把 `PortfolioSnapshot` 上传到本机 API。
+Collector 在用户设备上运行，通过隔离的 Chrome 资料目录保留用户主动建立的同花顺登录会话。首次登录使用普通 Chrome，日常采集使用无界面浏览器上下文调用网页当前使用的同源只读接口，在内存中完成字段标准化，再把 `PortfolioSnapshot` 上传到本机 API。
 
 Cookie、验证码、券商账号和原始接口正文不会上传，也不会写入日志。
 
@@ -11,7 +11,7 @@ Cookie、验证码、券商账号和原始接口正文不会上传，也不会�
 1. 从 `.env.example` 复制本地 `.env`，设置随机 `INGEST_SHARED_SECRET`。
 2. 运行 `pnpm --filter @portfolio/collector run login`。
 3. 在打开的浏览器中由用户本人完成登录或验证码。
-4. 页面进入投资账本后，浏览器自动关闭；会话只保存在 `TZZB_PROFILE_DIR`。
+4. 页面进入投资账本后，浏览器自动关闭；Cookie 和捕获到的本地用户标识只保存在 `TZZB_PROFILE_DIR`。
 
 遇到验证码或风控时，Collector 不做自动破解，必须由用户在页面内处理。
 
@@ -43,9 +43,11 @@ pnpm --filter @portfolio/collector run reconcile -- /绝对路径/持仓导出.x
 
 - `TZZB_PROFILE_DIR`：隔离资料目录，默认 `browser-profile/tzzb`。
 - `TZZB_BROWSER_CHANNEL`：默认使用本机 Chrome。
+- `TZZB_CHROME_EXECUTABLE`：可选，Google Chrome 安装在非标准位置时填写完整路径。
 - `TZZB_HEADLESS`：日常采集默认 `true`；排查登录问题时可临时改为 `false`。
 - `TZZB_ACCOUNT_IDS`：可选，逗号分隔；留空采集所有股票账户。
-- `TZZB_USER_ID`：仅在接口明确要求冗余用户 ID 时本地配置，不是 Cookie。
+- `TZZB_USER_ID`：通常无需填写；首次登录会从成功的账户请求中自动捕获并保存在本机。
+- `TZZB_CDP_URL`：仅用于开发排查，连接到用户主动启动的本地调试 Chrome；日常任务无需配置。
 - `TZZB_RATE_UNIT`：当前网页返回百分数单位，默认 `percent`。
 - `PORTFOLIO_API_URL`：标准化快照上传地址。
 - `INGEST_SHARED_SECRET`：Collector 与 API 之间的本地写入密钥。
@@ -53,7 +55,8 @@ pnpm --filter @portfolio/collector run reconcile -- /绝对路径/持仓导出.x
 ## 当前验证边界
 
 - 已使用虚构响应测试普通持仓、行情变化、当日买入、费用、资金变化和 27 列字段契约。
-- 已验证 Web 当前版本仍使用表单 POST 和相同接口族。
-- 尚未用有效登录会话完成真实响应逐值对账。
+- 已用真实登录会话验证 Web 当前版本仍使用表单 POST 和相同接口族；关闭登录窗口后，无界面采集成功读取两个股票账户。
+- 真实响应中 22 个有值字段均可生成；5 个官方导出本身留空的字段保持 `null`。`回本涨幅` 只在亏损持仓出现，因此覆盖状态可能是 `partial`，属于产品规则而非接口缺失。
+- 现有样本导出与当前页面不是同一账户状态：导出有 10 只，当前目标页面有 1 只，且重合持仓的单位成本也不同，因此不能作为逐值一致性的最终证据。需要对同一账户重新导出后立即运行 `reconcile`。
 - 港股盘中市值需要实际响应确认汇率口径；未确认前不会用猜测汇率重算。
 - 清仓列表和完整交易历史尚未进入每日快照链路。
