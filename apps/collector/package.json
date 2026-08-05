@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts collect",
     "login": "tsx src/index.ts login",
     "collect": "tsx src/index.ts collect",
+    "import:xlsx": "tsx src/index.ts import-xlsx",
     "audit": "tsx src/index.ts audit",
     "reconcile": "tsx src/index.ts reconcile",
     "build": "tsc -p tsconfig.json",

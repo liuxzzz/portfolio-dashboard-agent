@@ -14,6 +14,7 @@
     "android:assemble": "cd apps/android && ./gradlew assembleDebug",
     "android:test": "cd apps/android && ./gradlew testDebugUnitTest",
     "android:lint": "cd apps/android && ./gradlew lintDebug",
+    "android:reverse": "adb reverse tcp:4000 tcp:4000",
     "android:install": "cd apps/android && ./gradlew installDebug",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",

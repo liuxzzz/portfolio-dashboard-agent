@@ -17,6 +17,7 @@ import {
   openInteractiveLogin,
 } from "./tzzb/interactive-session.js";
 import { PlaywrightTzzbTransport } from "./tzzb/playwright-transport.js";
+import { readPortfolioSnapshotFromXlsx } from "./xlsx-import.js";
 
 function redactedAccountId(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 10);
@@ -34,6 +35,39 @@ async function main() {
   loadLocalEnv();
   const command = process.argv[2] ?? "collect";
   const config = loadCollectorConfig();
+
+  if (command === "import-xlsx") {
+    const filePath = process.argv.slice(3).find((value) => value !== "--");
+    if (!filePath) {
+      throw new Error("import-xlsx 命令需要提供同花顺导出的 .xlsx 文件路径");
+    }
+    if (!config.apiUrl || !config.ingestSharedSecret) {
+      throw new Error(
+        "import-xlsx 需要同时配置 PORTFOLIO_API_URL 与 INGEST_SHARED_SECRET",
+      );
+    }
+    const snapshot = await readPortfolioSnapshotFromXlsx(filePath);
+    await publishSnapshot(snapshot, {
+      apiUrl: config.apiUrl,
+      ingestSharedSecret: config.ingestSharedSecret,
+    });
+    console.log(
+      JSON.stringify({
+        status: "uploaded",
+        source: "xlsx",
+        snapshotId: snapshot.id,
+        capturedAt: snapshot.capturedAt,
+        positionCount: snapshot.positions.length,
+        totalAsset: snapshot.totalAsset,
+        cash: snapshot.cash,
+        stockMarketValue: snapshot.stockMarketValue,
+        positionRate: snapshot.positionRate,
+        cashCalculation: "stockMarketValue / positionRate - stockMarketValue",
+      }),
+    );
+    return;
+  }
+
   const localSessionState = await readLocalSessionState(config.profileDir);
   const transportOptions = {
     baseUrl: config.baseUrl,
@@ -61,7 +95,7 @@ async function main() {
     command !== "reconcile"
   ) {
     throw new Error(
-      `未知命令：${command}；支持 login、collect、audit 或 reconcile`,
+      `未知命令：${command}；支持 login、collect、audit、reconcile 或 import-xlsx`,
     );
   }
   const exportPath = process.argv.slice(3).find((value) => value !== "--");

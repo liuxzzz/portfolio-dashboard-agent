@@ -26,7 +26,7 @@ work/
 *.xls
 *.csv
 *.tsv
-data/
+/data/
 downloads/
 artifacts/
 browser-profile/

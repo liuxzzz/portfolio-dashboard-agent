@@ -90,6 +90,14 @@ pnpm --filter @portfolio/api dev
 pnpm --filter @portfolio/collector run collect
 ```
 
+也可以先从同花顺“持仓数据”Excel 导出跑通本地链路，无需浏览器登录：
+
+```bash
+pnpm --filter @portfolio/collector run import:xlsx -- /绝对路径/data.xlsx
+```
+
+导入会核对 27 列持仓合约与汇总行，逐行计算股票市值、当日盈亏和仓位；总资产与可用现金按导出仓位反推。由于导出仓位只保留有限小数，可用现金属于近似值。相同文件与时间重复导入会复用同一快照。
+
 采集器默认依次读取所有股票类账户，并只在日志中输出哈希账户标识、持仓条数和数据时间，不输出股票、金额或账户正文。详细说明见 `docs/collector.md`。
 
 需要核验 API 与导出是否逐列一致时，可运行 `pnpm --filter @portfolio/collector run reconcile -- /绝对路径/持仓导出.xlsx`。该命令只输出脱敏的 27 列匹配统计，不上传快照。

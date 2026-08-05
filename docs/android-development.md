@@ -51,34 +51,39 @@ pnpm db:deploy
 pnpm dev
 ```
 
-Android 模拟器把宿主机映射为 `10.0.2.2`，Debug 默认 API 地址已配置为：
+API 默认只监听 Mac 的回环地址。使用 ADB 反向端口转发，在不暴露局域网端口的情况下连接模拟器或 USB 真机：
+
+```bash
+pnpm android:reverse
+```
+
+Debug 默认 API 地址已配置为：
 
 ```text
-http://10.0.2.2:4000
+http://127.0.0.1:4000
 ```
 
 如需覆盖地址：
 
 ```bash
 cd apps/android
-./gradlew installDebug -PPORTFOLIO_API_BASE_URL=http://10.0.2.2:4000
+./gradlew installDebug -PPORTFOLIO_API_BASE_URL=http://127.0.0.1:4000
 ```
 
-未启动后端、数据库没有快照或请求失败时，客户端会依次尝试 Room 缓存和虚构演示数据，并在界面上标注来源。
+每次模拟器或 USB 连接重新建立后都需要再执行一次 `pnpm android:reverse`。请求成功时客户端更新 Room 缓存；后端暂时不可用时展示最近一次缓存并明确标注来源。没有远端数据和缓存时直接显示错误，不会用演示数据冒充真实持仓。
 
 ## 5. 真机调试
 
 1. 手机开启开发者选项与 USB 调试，连接后执行 `adb devices`。
-2. 在 `.env` 中临时设置 `HOST=0.0.0.0`，让 API 监听局域网；只在可信网络中这样做。
-3. 查出 Mac 的局域网地址，例如 `192.168.1.20`。
-4. 安装 Debug 包时覆盖 API 地址：
+2. 执行 `pnpm android:reverse`，把手机的 `127.0.0.1:4000` 安全转发到 Mac 后端。
+3. 安装 Debug 包：
 
 ```bash
 cd apps/android
-./gradlew installDebug -PPORTFOLIO_API_BASE_URL=http://192.168.1.20:4000
+./gradlew installDebug
 ```
 
-手机与 Mac 必须在同一网络，macOS 防火墙需要允许 Node 进程入站。结束后把 API 恢复为 `HOST=127.0.0.1`。
+这种方式不要求手机和 Mac 在同一 Wi-Fi，也不需要把未鉴权 API 暴露到局域网。断开 USB 后应用仍可读取最近一次 Room 缓存，但无法刷新后端数据。
 
 ## 6. 安全和发布
 
@@ -91,5 +96,5 @@ cd apps/android
 
 - `Unable to locate a Java Runtime`：从 Android Studio 内运行，或把 Gradle JDK 指向内置 JBR 17。
 - `SDK location not found`：在 Android Studio 完成 SDK 安装；IDE 会生成未提交的 `local.properties`。
-- 模拟器无法访问 `localhost:4000`：Android 模拟器必须使用 `10.0.2.2:4000`。
-- 真机请求被拒绝：检查 `HOST=0.0.0.0`、局域网 IP、防火墙和 Debug 构建；不要为 Release 开启明文 HTTP。
+- 模拟器或真机无法访问 `localhost:4000`：执行 `pnpm android:reverse`，再点击应用中的“重试”。
+- `adb reverse` 提示没有设备：先启动模拟器，或确认 USB 真机已授权调试。

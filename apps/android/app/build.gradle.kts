@@ -24,7 +24,7 @@ android {
 
     buildTypes {
         debug {
-            val debugApiBaseUrl = configuredApiBaseUrl.orElse("http://10.0.2.2:4000")
+            val debugApiBaseUrl = configuredApiBaseUrl.orElse("http://127.0.0.1:4000")
             buildConfigField("String", "API_BASE_URL", "\"${debugApiBaseUrl.get()}\"")
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }

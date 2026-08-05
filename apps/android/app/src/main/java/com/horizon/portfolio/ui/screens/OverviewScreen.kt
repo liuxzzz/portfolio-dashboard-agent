@@ -43,7 +43,11 @@ fun OverviewScreen(
     }
 
     val sourceLabel = when (state.source) {
-        DashboardSource.REMOTE -> if (snapshot.freshness == "fresh") "实时快照" else "待同步"
+        DashboardSource.REMOTE -> when (snapshot.freshness) {
+            "fresh" -> "实时快照"
+            "stale" -> "历史快照"
+            else -> "本地导入"
+        }
         DashboardSource.CACHE -> "本机缓存"
         DashboardSource.DEMO -> "演示数据"
         null -> "加载中"

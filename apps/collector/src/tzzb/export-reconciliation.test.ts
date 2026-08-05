@@ -76,6 +76,8 @@ test("parses holding rows and excludes the account summary row", () => {
   assert.equal(exported.positions.length, 1);
   assert.equal(exported.positions[0]?.symbol, "000001");
   assert.equal(exported.ignoredSummaryRows, 1);
+  assert.equal(exported.summaryRows[0]?.label, "账户汇总");
+  assert.equal(exported.summaryRows[0]?.values["持有金额"], 900);
 });
 
 test("preserves empty numeric spreadsheet cells as blanks", () => {

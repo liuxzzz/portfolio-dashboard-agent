@@ -11,9 +11,15 @@ export interface HoldingExportRow {
   values: Record<string, ExportCell>;
 }
 
+export interface HoldingExportSummaryRow {
+  label: string;
+  values: Record<string, ExportCell>;
+}
+
 export interface HoldingExport {
   headers: string[];
   positions: HoldingExportRow[];
+  summaryRows: HoldingExportSummaryRow[];
   ignoredSummaryRows: number;
 }
 
@@ -58,6 +64,7 @@ export function parseHoldingExportRows(
   }
 
   const positions: HoldingExportRow[] = [];
+  const summaryRows: HoldingExportSummaryRow[] = [];
   let ignoredSummaryRows = 0;
   const symbols = new Set<string>();
 
@@ -66,6 +73,15 @@ export function parseHoldingExportRows(
     const name = text(row[1]);
     if (!name) {
       ignoredSummaryRows += 1;
+      summaryRows.push({
+        label: text(row[0]),
+        values: Object.fromEntries(
+          holdingExportFields.map((field, index) => [
+            field.header,
+            exportCell(row[index]),
+          ]),
+        ),
+      });
       continue;
     }
     if (typeof row[0] !== "string") {
@@ -87,7 +103,7 @@ export function parseHoldingExportRows(
     });
   }
 
-  return { headers, positions, ignoredSummaryRows };
+  return { headers, positions, summaryRows, ignoredSummaryRows };
 }
 
 export async function readHoldingExport(filePath: string) {
