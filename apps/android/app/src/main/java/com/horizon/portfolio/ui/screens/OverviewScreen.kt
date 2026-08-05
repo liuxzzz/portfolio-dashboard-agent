@@ -2,37 +2,30 @@ package com.horizon.portfolio.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.horizon.portfolio.data.repository.DashboardSource
 import com.horizon.portfolio.ui.DashboardUiState
-import com.horizon.portfolio.ui.components.AllocationBar
-import com.horizon.portfolio.ui.components.MetricCard
-import com.horizon.portfolio.ui.components.PageHeader
-import com.horizon.portfolio.ui.components.SectionCard
-import com.horizon.portfolio.ui.components.SourceBadge
-import com.horizon.portfolio.ui.components.Sparkline
-import com.horizon.portfolio.ui.components.formatCurrency
-import com.horizon.portfolio.ui.components.formatPercent
-import com.horizon.portfolio.ui.components.formatTime
-import com.horizon.portfolio.ui.theme.Accent
+import com.horizon.portfolio.ui.components.IndustryAllocationCard
+import com.horizon.portfolio.ui.components.OverviewDisclaimer
+import com.horizon.portfolio.ui.components.OverviewHeader
+import com.horizon.portfolio.ui.components.OverviewMessageBanner
+import com.horizon.portfolio.ui.components.OverviewMetricRow
+import com.horizon.portfolio.ui.components.OverviewReveal
+import com.horizon.portfolio.ui.components.PortfolioHeroCard
+import com.horizon.portfolio.ui.components.PositionMeterCard
+import com.horizon.portfolio.ui.components.TopHoldingsCard
 import com.horizon.portfolio.ui.theme.Canvas
-import com.horizon.portfolio.ui.theme.Ink
-import com.horizon.portfolio.ui.theme.Muted
-import com.horizon.portfolio.ui.theme.Negative
-import com.horizon.portfolio.ui.theme.Positive
+import kotlinx.coroutines.delay
 
 @Composable
 fun OverviewScreen(
@@ -42,8 +35,15 @@ fun OverviewScreen(
     val dashboard = requireNotNull(state.dashboard)
     val snapshot = dashboard.snapshot
     val topPositions = snapshot.positions.sortedByDescending { it.marketValue }.take(5)
+    var playIntroAnimation by rememberSaveable { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        delay(1_700)
+        playIntroAnimation = false
+    }
+
     val sourceLabel = when (state.source) {
-        DashboardSource.REMOTE -> if (snapshot.freshness == "fresh") "实时快照" else "数据待同步"
+        DashboardSource.REMOTE -> if (snapshot.freshness == "fresh") "实时快照" else "待同步"
         DashboardSource.CACHE -> "本机缓存"
         DashboardSource.DEMO -> "演示数据"
         null -> "加载中"
@@ -51,126 +51,104 @@ fun OverviewScreen(
 
     LazyColumn(
         modifier = Modifier.background(Canvas),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
+        contentPadding = PaddingValues(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 26.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                PageHeader(
-                    eyebrow = "PORTFOLIO / TODAY",
-                    title = "组合概览",
-                    subtitle = snapshot.accountName,
-                    modifier = Modifier.weight(1f),
-                )
-                SourceBadge(sourceLabel)
-            }
+        item(key = "header") {
+            OverviewHeader(
+                accountName = snapshot.accountName,
+                sourceLabel = sourceLabel,
+                isLoading = state.isLoading,
+                onRefresh = onRefresh,
+            )
         }
 
-        state.message?.let { message ->
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFFFF2D8), RoundedCornerShape(14.dp))
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(message, color = Ink, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    Button(onClick = onRefresh, enabled = !state.isLoading) { Text("重试") }
-                }
-            }
+        item(key = "message") {
+            OverviewMessageBanner(
+                message = state.message,
+                isLoading = state.isLoading,
+                onRefresh = onRefresh,
+            )
         }
 
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Ink, RoundedCornerShape(24.dp))
-                    .padding(24.dp),
+        item(key = "hero") {
+            OverviewReveal(
+                animationKey = snapshot.id,
+                delayMillis = 40,
+                playAnimation = playIntroAnimation,
             ) {
-                Text("总资产", color = Color(0xFFAEB7C7), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    formatCurrency(snapshot.totalAsset),
-                    color = Color.White,
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(top = 7.dp),
-                )
-                Text(
-                    "今日 ${formatCurrency(snapshot.dayProfit, true)} · ${formatPercent(snapshot.dayProfitRate, true)}",
-                    color = if ((snapshot.dayProfit ?: 0.0) >= 0) Positive else Negative,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 18.dp),
-                )
-                Sparkline(dashboard.history.map { it.totalAsset }, Modifier.padding(top = 18.dp))
-                Text(
-                    "源数据同步于 ${formatTime(snapshot.sourceSyncedAt)}",
-                    color = Color(0xFF8C98AB),
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 12.dp),
+                PortfolioHeroCard(
+                    totalAsset = snapshot.totalAsset,
+                    dayProfit = snapshot.dayProfit,
+                    dayProfitRate = snapshot.dayProfitRate,
+                    history = dashboard.history,
+                    sourceSyncedAt = snapshot.sourceSyncedAt,
+                    animationKey = snapshot.id,
+                    playAnimation = playIntroAnimation,
                 )
             }
         }
 
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard(
-                    label = "股票市值",
-                    value = formatCurrency(snapshot.stockMarketValue),
-                    note = "${snapshot.positions.size} 只持仓",
-                    modifier = Modifier.weight(1f),
-                )
-                MetricCard(
-                    label = "股票仓位",
-                    value = formatPercent(snapshot.positionRate),
-                    note = "按净资产计算",
-                    modifier = Modifier.weight(1f),
+        item(key = "metrics") {
+            OverviewReveal(
+                animationKey = snapshot.id,
+                delayMillis = 120,
+                playAnimation = playIntroAnimation,
+            ) {
+                OverviewMetricRow(
+                    stockMarketValue = snapshot.stockMarketValue,
+                    cash = snapshot.cash,
+                    positionCount = snapshot.positions.size,
                 )
             }
         }
 
-        item {
-            MetricCard(
-                label = "现金",
-                value = formatCurrency(snapshot.cash),
-                note = "${formatPercent(if (snapshot.totalAsset == 0.0) 0.0 else snapshot.cash / snapshot.totalAsset)} 现金占比",
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        item {
-            SectionCard(title = "行业分布", subtitle = "按最新市值") {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    dashboard.industries.forEach { allocation ->
-                        AllocationBar(allocation.name, allocation.weight, color = parseColor(allocation.color))
-                    }
-                }
+        item(key = "position-meter") {
+            OverviewReveal(
+                animationKey = snapshot.id,
+                delayMillis = 190,
+                playAnimation = playIntroAnimation,
+            ) {
+                PositionMeterCard(
+                    positionRate = snapshot.positionRate,
+                    cash = snapshot.cash,
+                    totalAsset = snapshot.totalAsset,
+                    animationKey = snapshot.id,
+                    playAnimation = playIntroAnimation,
+                )
             }
         }
 
-        item {
-            SectionCard(title = "个股集中度", subtitle = "前五大持仓") {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    topPositions.forEach { position ->
-                        AllocationBar(position.name, position.portfolioWeight ?: 0.0, Accent)
-                    }
-                }
+        item(key = "industries") {
+            OverviewReveal(
+                animationKey = snapshot.id,
+                delayMillis = 260,
+                playAnimation = playIntroAnimation,
+            ) {
+                IndustryAllocationCard(
+                    allocations = dashboard.industries,
+                    animationKey = snapshot.id,
+                    playAnimation = playIntroAnimation,
+                )
             }
         }
 
-        item {
-            Text(
-                "本页先展示数据事实。所有分析都必须引用快照时间和证据，不直接生成交易指令。",
-                color = Muted,
-                fontSize = 11.sp,
-                lineHeight = 18.sp,
-                modifier = Modifier.padding(4.dp),
-            )
+        item(key = "concentration") {
+            OverviewReveal(
+                animationKey = snapshot.id,
+                delayMillis = 330,
+                playAnimation = playIntroAnimation,
+            ) {
+                TopHoldingsCard(
+                    positions = topPositions,
+                    animationKey = snapshot.id,
+                    playAnimation = playIntroAnimation,
+                )
+            }
+        }
+
+        item(key = "disclaimer") {
+            OverviewDisclaimer()
         }
     }
 }
-
-private fun parseColor(value: String): Color = runCatching {
-    Color(android.graphics.Color.parseColor(value))
-}.getOrDefault(Accent)

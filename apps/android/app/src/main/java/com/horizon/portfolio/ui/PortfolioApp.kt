@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -24,21 +27,27 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.horizon.portfolio.PortfolioApplication
+import com.horizon.portfolio.R
 import com.horizon.portfolio.ui.screens.AgentScreen
 import com.horizon.portfolio.ui.screens.HoldingsScreen
 import com.horizon.portfolio.ui.screens.OverviewScreen
 import com.horizon.portfolio.ui.screens.PositionDetailScreen
+import com.horizon.portfolio.ui.theme.Accent
+import com.horizon.portfolio.ui.theme.AccentSoft
+import com.horizon.portfolio.ui.theme.Ink
+import com.horizon.portfolio.ui.theme.Muted
+import com.horizon.portfolio.ui.theme.Surface
 
 private data class TopLevelDestination(
     val route: String,
     val label: String,
-    val glyph: String,
+    val iconRes: Int,
 )
 
 private val topLevelDestinations = listOf(
-    TopLevelDestination("overview", "概览", "总"),
-    TopLevelDestination("holdings", "持仓", "仓"),
-    TopLevelDestination("agent", "Agent", "AI"),
+    TopLevelDestination("overview", "概览", R.drawable.ic_overview_rounded),
+    TopLevelDestination("holdings", "持仓", R.drawable.ic_holdings_rounded),
+    TopLevelDestination("agent", "Agent", R.drawable.ic_agent_rounded),
 )
 
 @Composable
@@ -74,7 +83,10 @@ fun PortfolioApp() {
     val navController = rememberNavController()
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = Surface,
+                tonalElevation = 0.dp,
+            ) {
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = backStackEntry?.destination
                 topLevelDestinations.forEach { destination ->
@@ -89,8 +101,20 @@ fun PortfolioApp() {
                                 restoreState = true
                             }
                         },
-                        icon = { Text(destination.glyph) },
+                        icon = {
+                            Icon(
+                                painter = painterResource(destination.iconRes),
+                                contentDescription = destination.label,
+                            )
+                        },
                         label = { Text(destination.label) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Ink,
+                            selectedTextColor = Accent,
+                            indicatorColor = AccentSoft,
+                            unselectedIconColor = Muted,
+                            unselectedTextColor = Muted,
+                        ),
                     )
                 }
             }
