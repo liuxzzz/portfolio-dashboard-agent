@@ -2,16 +2,20 @@
 
 ## 数据模型
 
-PostgreSQL 保存六类关系数据：
+PostgreSQL 保存八类关系数据：
 
 - `accounts`：同花顺账户的稳定身份，只保存标准化账户信息。
 - `snapshots`：一次采集的账户汇总、数据时间、版本号与内容哈希。
 - `positions`：该快照下的完整持仓字段；金额使用定点小数，避免浮点累计误差。
+- `security_industry_memberships`：带有效起止日期的证券—申万行业映射，保留一、二、三级分类及来源。
+- `industry_market_bars`：申万一级行业日线与抓取时间。
 - `agent_runs`：一次组合分析运行及状态。
 - `agent_insights`：结构化观察、严重程度、置信度与说明。
 - `agent_evidence`：每条观察所引用的快照、持仓或计算证据。
 
 一个账户有多个快照；快照拥有当时的持仓与分析记录。快照以账户和采集时间唯一，保存后不允许修改。重复上传相同快照会直接复用，内容冲突则拒绝覆盖。
+
+行业映射与行情属于外部参考数据，和 Collector 提交的事实快照分表保存。查询看板时按快照时间选择有效分类并生成增强响应，因此后续行业调整不会覆写历史持仓。
 
 Prisma 模型位于 `apps/api/prisma/schema.prisma`，已提交的迁移位于 `apps/api/prisma/migrations`。生成的 Prisma Client 不提交 Git，在安装、构建和测试前自动生成。
 

@@ -9,6 +9,8 @@ flowchart LR
     C -->|"仅标准化快照"| D["Portfolio API"]
     D --> E["PostgreSQL 18\nPrisma 不可变快照仓储"]
     E --> F["Agent Core\n规则与证据"]
+    J["Tushare\n申万分类与行业日线"] --> K["行业参考数据\n版本化映射与行情"]
+    K --> D
     F --> D
     D --> G["Android 原生客户端\nKotlin + Compose"]
     G --> H["Room 本地缓存"]
@@ -55,6 +57,14 @@ Android 客户端只负责显示、离线缓存和用户交互。采集凭证、
 - `PortfolioAgentService` 是编排边界，当前调用确定性 evidence-first 规则核心。
 - `POST /v1/agent/runs` 允许客户端基于最新快照重新分析；运行结果写入仓储后由看板返回。
 - 将来接入模型时只能解释已登记证据，不能直接读取 Collector 会话或执行交易。
+
+### Industry Data
+
+- Tushare Token 只配置在 Portfolio API，Collector 和 Android 客户端均不接触凭证。
+- `index_member_all` 提供申万一、二、三级行业及生效区间，`sw_daily` 提供一级行业日行情。
+- 外部数据独立保存，查询时按快照时间增强持仓，不修改不可变快照及其内容哈希。
+- 分类同步默认缓存 24 小时，行情缓存 15 分钟；失败时使用最近缓存并在 `industryData` 中披露状态。
+- ETF、港股和无法匹配的证券保留源分类或显示“未分类”，不强行混用不同分类体系。
 
 ## 数据新鲜度
 

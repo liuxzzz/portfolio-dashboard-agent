@@ -5,6 +5,11 @@ import {
   type PortfolioSnapshot,
 } from "@portfolio/domain";
 import type { PortfolioPrismaClient } from "./prisma.js";
+import type {
+  IndustryMarketBar,
+  IndustryMembership,
+  SecurityReference,
+} from "./industry.js";
 import {
   snapshotContentHash,
   type PortfolioRepository,
@@ -337,6 +342,163 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
       date: record.capturedAt.toISOString().slice(0, 10),
       totalAsset: number(record.totalAsset) ?? 0,
       positionRate: number(record.positionRate),
+    }));
+  }
+
+  async saveIndustryMemberships(
+    memberships: readonly IndustryMembership[],
+  ) {
+    if (memberships.length === 0) return;
+    await this.prisma.$transaction(
+      memberships.map((membership) =>
+        this.prisma.securityIndustryMembership.upsert({
+          where: { id: membership.id },
+          create: {
+            id: membership.id,
+            taxonomy: membership.taxonomy,
+            market: membership.market,
+            symbol: membership.symbol,
+            level1Code: membership.level1Code,
+            level1Name: membership.level1Name,
+            level2Code: membership.level2Code,
+            level2Name: membership.level2Name,
+            level3Code: membership.level3Code,
+            level3Name: membership.level3Name,
+            effectiveFrom: membership.effectiveFrom
+              ? new Date(membership.effectiveFrom)
+              : null,
+            effectiveTo: membership.effectiveTo
+              ? new Date(membership.effectiveTo)
+              : null,
+            isCurrent: membership.isCurrent,
+            source: membership.source,
+            fetchedAt: new Date(membership.fetchedAt),
+          },
+          update: {
+            level1Code: membership.level1Code,
+            level1Name: membership.level1Name,
+            level2Code: membership.level2Code,
+            level2Name: membership.level2Name,
+            level3Code: membership.level3Code,
+            level3Name: membership.level3Name,
+            effectiveFrom: membership.effectiveFrom
+              ? new Date(membership.effectiveFrom)
+              : null,
+            effectiveTo: membership.effectiveTo
+              ? new Date(membership.effectiveTo)
+              : null,
+            isCurrent: membership.isCurrent,
+            source: membership.source,
+            fetchedAt: new Date(membership.fetchedAt),
+          },
+        }),
+      ),
+    );
+  }
+
+  async getIndustryMemberships(
+    securities: readonly SecurityReference[],
+    asOf: Date,
+    taxonomy: string,
+  ) {
+    if (securities.length === 0) return [];
+    const records = await this.prisma.securityIndustryMembership.findMany({
+      where: {
+        taxonomy,
+        OR: securities.map((security) => ({
+          market: security.market,
+          symbol: security.symbol,
+        })),
+        AND: [
+          { OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: asOf } }] },
+          { OR: [{ effectiveTo: null }, { effectiveTo: { gte: asOf } }] },
+        ],
+      },
+      orderBy: [{ isCurrent: "desc" }, { effectiveFrom: "desc" }],
+    });
+    const current = new Map<string, (typeof records)[number]>();
+    for (const record of records) {
+      const key = `${record.market}:${record.symbol}`;
+      if (!current.has(key)) current.set(key, record);
+    }
+    return [...current.values()].map((record) => ({
+      id: record.id,
+      taxonomy: record.taxonomy,
+      market: record.market,
+      symbol: record.symbol,
+      level1Code: record.level1Code,
+      level1Name: record.level1Name,
+      level2Code: record.level2Code,
+      level2Name: record.level2Name,
+      level3Code: record.level3Code,
+      level3Name: record.level3Name,
+      effectiveFrom: record.effectiveFrom?.toISOString() ?? null,
+      effectiveTo: record.effectiveTo?.toISOString() ?? null,
+      isCurrent: record.isCurrent,
+      source: record.source,
+      fetchedAt: record.fetchedAt.toISOString(),
+    }));
+  }
+
+  async saveIndustryBars(bars: readonly IndustryMarketBar[]) {
+    if (bars.length === 0) return;
+    await this.prisma.$transaction(
+      bars.map((bar) =>
+        this.prisma.industryMarketBar.upsert({
+          where: { id: bar.id },
+          create: {
+            id: bar.id,
+            taxonomy: bar.taxonomy,
+            industryCode: bar.industryCode,
+            industryName: bar.industryName,
+            tradeDate: new Date(bar.tradeDate),
+            close: bar.close,
+            pctChange: bar.pctChange,
+            source: bar.source,
+            fetchedAt: new Date(bar.fetchedAt),
+          },
+          update: {
+            industryName: bar.industryName,
+            close: bar.close,
+            pctChange: bar.pctChange,
+            source: bar.source,
+            fetchedAt: new Date(bar.fetchedAt),
+          },
+        }),
+      ),
+    );
+  }
+
+  async getLatestIndustryBars(
+    industryCodes: readonly string[],
+    asOf: Date,
+    taxonomy: string,
+  ) {
+    if (industryCodes.length === 0) return [];
+    const records = await this.prisma.industryMarketBar.findMany({
+      where: {
+        taxonomy,
+        industryCode: { in: [...industryCodes] },
+        tradeDate: { lte: asOf },
+      },
+      orderBy: { tradeDate: "desc" },
+    });
+    const latest = new Map<string, (typeof records)[number]>();
+    for (const record of records) {
+      if (!latest.has(record.industryCode)) {
+        latest.set(record.industryCode, record);
+      }
+    }
+    return [...latest.values()].map((record) => ({
+      id: record.id,
+      taxonomy: record.taxonomy,
+      industryCode: record.industryCode,
+      industryName: record.industryName,
+      tradeDate: record.tradeDate.toISOString(),
+      close: number(record.close),
+      pctChange: number(record.pctChange),
+      source: record.source,
+      fetchedAt: record.fetchedAt.toISOString(),
     }));
   }
 }

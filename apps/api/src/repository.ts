@@ -4,6 +4,11 @@ import type {
   PortfolioHistoryPoint,
   PortfolioSnapshot,
 } from "@portfolio/domain";
+import type {
+  IndustryMarketBar,
+  IndustryMembership,
+  SecurityReference,
+} from "./industry.js";
 
 export type SnapshotSaveResult = "created" | "existing";
 
@@ -14,6 +19,20 @@ export interface PortfolioRepository {
   getLatestSnapshot(accountId?: string): Promise<PortfolioSnapshot | null>;
   getLatestAgentRun(snapshotId: string): Promise<AgentRun | null>;
   getHistory(accountId: string, limit: number): Promise<PortfolioHistoryPoint[]>;
+  saveIndustryMemberships(
+    memberships: readonly IndustryMembership[],
+  ): Promise<void>;
+  getIndustryMemberships(
+    securities: readonly SecurityReference[],
+    asOf: Date,
+    taxonomy: string,
+  ): Promise<IndustryMembership[]>;
+  saveIndustryBars(bars: readonly IndustryMarketBar[]): Promise<void>;
+  getLatestIndustryBars(
+    industryCodes: readonly string[],
+    asOf: Date,
+    taxonomy: string,
+  ): Promise<IndustryMarketBar[]>;
 }
 
 export function snapshotContentHash(snapshot: PortfolioSnapshot) {
@@ -50,6 +69,8 @@ export function snapshotContentHash(snapshot: PortfolioSnapshot) {
 export class MemoryPortfolioRepository implements PortfolioRepository {
   private readonly snapshots = new Map<string, PortfolioSnapshot>();
   private readonly runs = new Map<string, AgentRun>();
+  private readonly industryMemberships = new Map<string, IndustryMembership>();
+  private readonly industryBars = new Map<string, IndustryMarketBar>();
 
   async healthCheck() {}
 
@@ -102,5 +123,70 @@ export class MemoryPortfolioRepository implements PortfolioRepository {
         totalAsset: snapshot.totalAsset,
         positionRate: snapshot.positionRate,
       }));
+  }
+
+  async saveIndustryMemberships(
+    memberships: readonly IndustryMembership[],
+  ) {
+    for (const membership of memberships) {
+      this.industryMemberships.set(membership.id, membership);
+    }
+  }
+
+  async getIndustryMemberships(
+    securities: readonly SecurityReference[],
+    asOf: Date,
+    taxonomy: string,
+  ) {
+    const date = asOf.toISOString();
+    const requested = new Set(
+      securities.map((security) => `${security.market}:${security.symbol}`),
+    );
+    const candidates = [...this.industryMemberships.values()]
+      .filter(
+        (membership) =>
+          membership.taxonomy === taxonomy &&
+          requested.has(`${membership.market}:${membership.symbol}`) &&
+          (!membership.effectiveFrom || membership.effectiveFrom <= date) &&
+          (!membership.effectiveTo || membership.effectiveTo >= date),
+      )
+      .sort((left, right) => {
+        if (left.isCurrent !== right.isCurrent) return left.isCurrent ? -1 : 1;
+        return (right.effectiveFrom ?? "").localeCompare(
+          left.effectiveFrom ?? "",
+        );
+      });
+    const current = new Map<string, IndustryMembership>();
+    for (const membership of candidates) {
+      const key = `${membership.market}:${membership.symbol}`;
+      if (!current.has(key)) current.set(key, membership);
+    }
+    return [...current.values()];
+  }
+
+  async saveIndustryBars(bars: readonly IndustryMarketBar[]) {
+    for (const bar of bars) this.industryBars.set(bar.id, bar);
+  }
+
+  async getLatestIndustryBars(
+    industryCodes: readonly string[],
+    asOf: Date,
+    taxonomy: string,
+  ) {
+    const requested = new Set(industryCodes);
+    const date = asOf.toISOString();
+    const candidates = [...this.industryBars.values()]
+      .filter(
+        (bar) =>
+          bar.taxonomy === taxonomy &&
+          requested.has(bar.industryCode) &&
+          bar.tradeDate <= date,
+      )
+      .sort((left, right) => right.tradeDate.localeCompare(left.tradeDate));
+    const latest = new Map<string, IndustryMarketBar>();
+    for (const bar of candidates) {
+      if (!latest.has(bar.industryCode)) latest.set(bar.industryCode, bar);
+    }
+    return [...latest.values()];
   }
 }

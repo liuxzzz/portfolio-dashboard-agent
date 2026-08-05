@@ -27,6 +27,17 @@
 
 返回最新快照、行业聚合、最近 30 个快照的资产历史和最新 Agent 运行结果。暂无快照时返回 `404`。
 
+配置 `TUSHARE_TOKEN` 后，响应中的持仓 `industry`、`relatedSector`、`sectorRate` 会使用对应快照时间有效的申万行业数据增强；`industries[].dayRate` 是申万一级行业日涨跌率。`industryData` 披露分类体系、来源、同步状态和缓存时间。外部行业服务失败不会使看板失败。
+
+## 刷新行业数据
+
+`POST /v1/industries/refresh?accountId=<optional>`
+
+- Header：`Authorization: Bearer <INGEST_SHARED_SECRET>`。
+- 强制刷新最新快照涉及证券的申万行业映射和行业日线。
+- 返回行业数量与 `industryData` 同步状态。
+- 未配置写入密钥返回 `503`，鉴权失败返回 `401`，暂无快照返回 `404`。
+
 ## 查询最新 Agent 运行
 
 `GET /v1/agent/runs/latest?accountId=<optional>`

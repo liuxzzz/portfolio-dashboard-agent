@@ -16,10 +16,16 @@ test(
     const suffix = randomUUID();
     const snapshotId = `snapshot-db-${suffix}`;
     const sourceAccountId = `account-db-${suffix}`;
+    const membershipId = `membership-${suffix}`;
+    const industryBarId = `industry-bar-${suffix}`;
     const prisma = createPrismaClient(databaseUrl);
     const repository = new PrismaPortfolioRepository(prisma);
 
     context.after(async () => {
+      await prisma.industryMarketBar.deleteMany({ where: { id: industryBarId } });
+      await prisma.securityIndustryMembership.deleteMany({
+        where: { id: membershipId },
+      });
       await prisma.snapshot.deleteMany({ where: { id: snapshotId } });
       await prisma.account.deleteMany({ where: { sourceAccountId } });
       await prisma.$disconnect();
@@ -100,5 +106,58 @@ test(
         positionRate: snapshot.positionRate,
       },
     ]);
+
+    await repository.saveIndustryMemberships([
+      {
+        id: membershipId,
+        taxonomy: "SW2021",
+        market: "SH",
+        symbol: "600000",
+        level1Code: "801780.SI",
+        level1Name: "银行",
+        level2Code: "801783.SI",
+        level2Name: "股份制银行Ⅱ",
+        level3Code: "850192.SI",
+        level3Name: "股份制银行Ⅲ",
+        effectiveFrom: "2021-12-13T00:00:00.000Z",
+        effectiveTo: null,
+        isCurrent: true,
+        source: "test:index_member_all",
+        fetchedAt: "2026-08-05T09:00:00.000Z",
+      },
+    ]);
+    await repository.saveIndustryBars([
+      {
+        id: industryBarId,
+        taxonomy: "SW2021",
+        industryCode: "801780.SI",
+        industryName: "银行",
+        tradeDate: "2026-08-05T00:00:00.000Z",
+        close: 3_100,
+        pctChange: 1.23,
+        source: "test:sw_daily",
+        fetchedAt: "2026-08-05T09:00:00.000Z",
+      },
+    ]);
+    assert.equal(
+      (
+        await repository.getIndustryMemberships(
+          [{ market: "SH", symbol: "600000" }],
+          new Date(snapshot.capturedAt),
+          "SW2021",
+        )
+      )[0]?.level1Name,
+      "银行",
+    );
+    assert.equal(
+      (
+        await repository.getLatestIndustryBars(
+          ["801780.SI"],
+          new Date(snapshot.capturedAt),
+          "SW2021",
+        )
+      )[0]?.pctChange,
+      1.23,
+    );
   },
 );

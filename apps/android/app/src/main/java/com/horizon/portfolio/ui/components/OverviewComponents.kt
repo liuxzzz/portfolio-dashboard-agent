@@ -60,6 +60,7 @@ import com.horizon.portfolio.ui.theme.Canvas
 import com.horizon.portfolio.ui.theme.Ink
 import com.horizon.portfolio.ui.theme.Muted
 import com.horizon.portfolio.ui.theme.MutedDark
+import com.horizon.portfolio.ui.theme.Negative
 import com.horizon.portfolio.ui.theme.Positive
 import com.horizon.portfolio.ui.theme.Surface as SurfaceColor
 import com.horizon.portfolio.ui.theme.Warning
@@ -750,12 +751,23 @@ private fun AllocationLegendRow(slice: AllocationSlice) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = 8.dp),
         )
-        Text(
-            text = formatPercent(slice.weight),
-            color = Ink,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = formatPercent(slice.weight),
+                color = Ink,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            slice.dayRate?.let { dayRate ->
+                Text(
+                    text = "行业 ${formatPercent(dayRate, true)}",
+                    color = if (dayRate >= 0) Positive else Negative,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
     }
 }
 
@@ -936,16 +948,19 @@ private data class AllocationSlice(
     val name: String,
     val weight: Double,
     val color: Color,
+    val dayRate: Double?,
 )
 
 private fun List<IndustryAllocation>.toSlices(): List<AllocationSlice> {
     val sorted = sortedByDescending { it.weight }
     if (sorted.size <= 4) {
-        return sorted.map { AllocationSlice(it.name, it.weight, parseColor(it.color)) }
+        return sorted.map { AllocationSlice(it.name, it.weight, parseColor(it.color), it.dayRate) }
     }
-    val top = sorted.take(3).map { AllocationSlice(it.name, it.weight, parseColor(it.color)) }
+    val top = sorted.take(3).map {
+        AllocationSlice(it.name, it.weight, parseColor(it.color), it.dayRate)
+    }
     val remainder = sorted.drop(3).sumOf { it.weight }
-    return top + AllocationSlice("其他", remainder, Muted)
+    return top + AllocationSlice("其他", remainder, Muted, null)
 }
 
 private fun parseColor(value: String): Color = runCatching {

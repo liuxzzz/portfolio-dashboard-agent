@@ -5,6 +5,8 @@ import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { createPrismaClient } from "./prisma.js";
 import { PrismaPortfolioRepository } from "./prisma-repository.js";
+import { PortfolioIndustryService } from "./industry.js";
+import { TushareIndustryProvider } from "./tushare-industry-provider.js";
 
 const envCandidates = [
   path.resolve(process.cwd(), ".env"),
@@ -22,7 +24,19 @@ if (!databaseUrl) {
 const prisma = createPrismaClient(databaseUrl);
 const repository = new PrismaPortfolioRepository(prisma);
 await repository.healthCheck();
-const app = createApp({ repository });
+const tushareToken = process.env.TUSHARE_TOKEN?.trim();
+const tushareApiUrl = process.env.TUSHARE_API_URL?.trim();
+const industryProvider = tushareToken
+  ? new TushareIndustryProvider(
+      tushareToken,
+      tushareApiUrl ? { apiUrl: tushareApiUrl } : {},
+    )
+  : undefined;
+const industryService = new PortfolioIndustryService(
+  repository,
+  industryProvider,
+);
+const app = createApp({ repository, industryService });
 
 const server = serve({ fetch: app.fetch, hostname, port }, (info) => {
   console.log(`portfolio-api listening on http://${hostname}:${info.port}`);

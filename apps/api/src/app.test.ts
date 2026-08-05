@@ -84,8 +84,10 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
   assert.equal(payload.snapshot.id, snapshot.id);
   assert.deepEqual(payload.industries[0], {
     name: "金融",
+    code: null,
     value: 80_000,
     weight: 0.8,
+    dayRate: null,
     color: "#172033",
   });
   assert.equal(payload.latestAgentRun.status, "completed");
@@ -100,6 +102,16 @@ test("accepts an authenticated snapshot and serves a dashboard", async () => {
   assert.equal(rerunPayload.snapshotId, snapshot.id);
   assert.equal(rerunPayload.status, "completed");
   assert.ok(rerunPayload.insights.length > 0);
+
+  const refreshed = await app.request("/v1/industries/refresh", {
+    method: "POST",
+    headers: { Authorization: "Bearer test-secret" },
+  });
+  assert.equal(refreshed.status, 200);
+  const refreshedPayload = (await refreshed.json()) as {
+    industryData: { status: string };
+  };
+  assert.equal(refreshedPayload.industryData.status, "disabled");
 });
 
 test("manual Agent run requires an existing snapshot", async () => {

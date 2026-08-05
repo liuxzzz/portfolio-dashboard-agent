@@ -95,6 +95,14 @@ fun PositionDetailScreen(
             "${position.holdingDays ?: "—"} 个持仓日",
             Modifier.fillMaxWidth(),
         )
+        position.relatedSector?.let { sector ->
+            MetricCard(
+                "申万细分行业",
+                sector,
+                "行业当日 ${formatPercent(position.sectorRate, true)}",
+                Modifier.fillMaxWidth(),
+            )
+        }
 
         Column(
             modifier = Modifier.fillMaxWidth().background(AccentSoft, RoundedCornerShape(18.dp)).padding(18.dp),

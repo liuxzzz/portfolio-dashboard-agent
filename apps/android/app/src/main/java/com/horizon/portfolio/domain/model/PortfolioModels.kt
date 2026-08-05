@@ -8,6 +8,7 @@ data class DashboardPayload(
     val industries: List<IndustryAllocation>,
     val history: List<PortfolioHistoryPoint>,
     val latestAgentRun: AgentRun? = null,
+    val industryData: IndustryDataStatus? = null,
 )
 
 @Serializable
@@ -45,6 +46,8 @@ data class PositionSnapshot(
     val holdingProfit: Double? = null,
     val holdingProfitRate: Double? = null,
     val holdingDays: Int? = null,
+    val relatedSector: String? = null,
+    val sectorRate: Double? = null,
 )
 
 @Serializable
@@ -53,6 +56,17 @@ data class IndustryAllocation(
     val value: Double,
     val weight: Double,
     val color: String,
+    val code: String? = null,
+    val dayRate: Double? = null,
+)
+
+@Serializable
+data class IndustryDataStatus(
+    val taxonomy: String,
+    val source: String,
+    val status: String,
+    val syncedAt: String? = null,
+    val message: String? = null,
 )
 
 @Serializable

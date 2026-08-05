@@ -54,9 +54,19 @@ export const portfolioSnapshotSchema = z.object({
 
 export const industryAllocationSchema = z.object({
   name: z.string().min(1),
+  code: z.string().min(1).nullable().optional(),
   value: z.number().nonnegative(),
   weight: z.number().min(0),
+  dayRate: z.number().nullable().optional(),
   color: z.string().min(1),
+});
+
+export const industryDataStatusSchema = z.object({
+  taxonomy: z.string().min(1),
+  source: z.string().min(1),
+  status: z.enum(["fresh", "stale", "unavailable", "disabled"]),
+  syncedAt: z.iso.datetime().nullable(),
+  message: z.string().min(1).nullable(),
 });
 
 export const portfolioHistoryPointSchema = z.object({
@@ -69,4 +79,5 @@ export type DataFreshness = z.infer<typeof dataFreshnessSchema>;
 export type PositionSnapshot = z.infer<typeof positionSnapshotSchema>;
 export type PortfolioSnapshot = z.infer<typeof portfolioSnapshotSchema>;
 export type IndustryAllocation = z.infer<typeof industryAllocationSchema>;
+export type IndustryDataStatus = z.infer<typeof industryDataStatusSchema>;
 export type PortfolioHistoryPoint = z.infer<typeof portfolioHistoryPointSchema>;

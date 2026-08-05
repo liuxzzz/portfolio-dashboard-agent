@@ -124,6 +124,44 @@ model Position {
   @@map("positions")
 }
 
+model SecurityIndustryMembership {
+  id            String    @id @db.VarChar(64)
+  taxonomy      String    @db.VarChar(32)
+  market        String    @db.VarChar(32)
+  symbol        String    @db.VarChar(64)
+  level1Code    String    @db.VarChar(32)
+  level1Name    String    @db.VarChar(255)
+  level2Code    String?   @db.VarChar(32)
+  level2Name    String?   @db.VarChar(255)
+  level3Code    String?   @db.VarChar(32)
+  level3Name    String?   @db.VarChar(255)
+  effectiveFrom DateTime? @db.Timestamptz(3)
+  effectiveTo   DateTime? @db.Timestamptz(3)
+  isCurrent     Boolean   @default(false)
+  source        String    @db.VarChar(64)
+  fetchedAt     DateTime  @db.Timestamptz(3)
+
+  @@index([taxonomy, market, symbol, effectiveFrom(sort: Desc)])
+  @@index([taxonomy, level1Code, isCurrent])
+  @@map("security_industry_memberships")
+}
+
+model IndustryMarketBar {
+  id           String   @id @db.VarChar(64)
+  taxonomy     String   @db.VarChar(32)
+  industryCode String   @db.VarChar(32)
+  industryName String   @db.VarChar(255)
+  tradeDate    DateTime @db.Timestamptz(3)
+  close        Decimal? @db.Decimal(24, 8)
+  pctChange    Decimal? @db.Decimal(20, 12)
+  source       String   @db.VarChar(64)
+  fetchedAt    DateTime @db.Timestamptz(3)
+
+  @@unique([taxonomy, industryCode, tradeDate])
+  @@index([taxonomy, industryCode, tradeDate(sort: Desc)])
+  @@map("industry_market_bars")
+}
+
 model AgentRun {
   id          String         @id @db.VarChar(512)
   snapshotId  String

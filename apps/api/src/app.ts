@@ -3,8 +3,6 @@ import {
   dashboardPayloadSchema,
   portfolioSnapshotSchema,
   type DashboardPayload,
-  type IndustryAllocation,
-  type PortfolioSnapshot,
 } from "@portfolio/domain";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -16,19 +14,12 @@ import {
   MemoryPortfolioRepository,
   type PortfolioRepository,
 } from "./repository.js";
-
-const industryColors = [
-  "#172033",
-  "#5BC5A7",
-  "#F3B45A",
-  "#7C8BE8",
-  "#D96C8B",
-  "#8B98A9",
-];
+import { PortfolioIndustryService } from "./industry.js";
 
 export interface AppOptions {
   repository?: PortfolioRepository;
   agentService?: PortfolioAgentService;
+  industryService?: PortfolioIndustryService;
   ingestSharedSecret?: string;
   clientOrigin?: string;
   now?: () => Date;
@@ -55,27 +46,11 @@ function readIngestSecret(authorization: string | undefined) {
     : undefined;
 }
 
-function aggregateIndustries(snapshot: PortfolioSnapshot): IndustryAllocation[] {
-  const totals = new Map<string, number>();
-
-  for (const position of snapshot.positions) {
-    const industry = position.industry ?? "未分类";
-    totals.set(industry, (totals.get(industry) ?? 0) + position.marketValue);
-  }
-
-  return [...totals.entries()]
-    .sort((left, right) => right[1] - left[1])
-    .map(([name, value], index) => ({
-      name,
-      value,
-      weight: snapshot.totalAsset === 0 ? 0 : value / snapshot.totalAsset,
-      color: industryColors[index % industryColors.length] ?? "#8B98A9",
-    }));
-}
-
 export function createApp(options: AppOptions = {}) {
   const repository = options.repository ?? new MemoryPortfolioRepository();
   const agentService = options.agentService ?? new EvidenceFirstAgentService();
+  const industryService =
+    options.industryService ?? new PortfolioIndustryService(repository);
   const now = options.now ?? (() => new Date());
   const expectedSecret =
     options.ingestSharedSecret ?? process.env.INGEST_SHARED_SECRET;
@@ -159,14 +134,42 @@ export function createApp(options: AppOptions = {}) {
       return context.json({ error: "snapshot_not_found" }, 404);
     }
 
+    const industry = await industryService.enrich(snapshot);
+
     const payload: DashboardPayload = {
-      snapshot,
-      industries: aggregateIndustries(snapshot),
+      snapshot: industry.snapshot,
+      industries: industry.industries,
+      industryData: industry.industryData,
       history: await repository.getHistory(snapshot.sourceAccountId, 30),
       latestAgentRun: await repository.getLatestAgentRun(snapshot.id),
     };
 
     return context.json(dashboardPayloadSchema.parse(payload));
+  });
+
+  app.post("/v1/industries/refresh", async (context) => {
+    if (!expectedSecret) {
+      return context.json({ error: "ingest_not_configured" }, 503);
+    }
+    const receivedSecret = readIngestSecret(
+      context.req.header("authorization"),
+    );
+    if (!secretsMatch(receivedSecret, expectedSecret)) {
+      return context.json({ error: "unauthorized" }, 401);
+    }
+    const accountId = context.req.query("accountId");
+    const snapshot = await repository.getLatestSnapshot(accountId);
+    if (!snapshot) {
+      return context.json({ error: "snapshot_not_found" }, 404);
+    }
+    const industry = await industryService.enrich(snapshot, { force: true });
+    return context.json({
+      snapshotId: snapshot.id,
+      industryCount: industry.industries.filter(
+        (allocation) => allocation.name !== "未分类",
+      ).length,
+      industryData: industry.industryData,
+    });
   });
 
   app.get("/v1/agent/runs/latest", async (context) => {

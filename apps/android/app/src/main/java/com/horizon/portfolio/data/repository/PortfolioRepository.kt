@@ -48,6 +48,9 @@ class DefaultPortfolioRepository(
             DashboardLoadResult(
                 payload = payload,
                 source = DashboardSource.REMOTE,
+                warning = payload.industryData
+                    ?.takeIf { it.status != "fresh" }
+                    ?.message,
             )
         } catch (remoteError: Exception) {
             val cached = cache.get()
