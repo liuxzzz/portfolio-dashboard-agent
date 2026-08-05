@@ -1,0 +1,24 @@
+node_modules/
+.pnpm-store/
+.next/
+dist/
+coverage/
+*.log
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+# Sensitive financial exports and local browser state
+*.xlsx
+*.xls
+*.csv
+*.tsv
+data/
+downloads/
+artifacts/
+browser-profile/
+playwright/.auth/
+
+.DS_Store
