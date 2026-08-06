@@ -4,6 +4,7 @@ set -Eeuo pipefail
 DEPLOY_DIR="${DEPLOY_DIR:-/opt/maomao-youshu}"
 COMPOSE_FILE="$DEPLOY_DIR/compose.prod.yaml"
 ENV_FILE="$DEPLOY_DIR/.env"
+AUTH_ENV_FILE="$DEPLOY_DIR/.env.auth"
 IMAGE_REPOSITORY="${1:-}"
 NEW_TAG="${2:-}"
 PULL_MODE="${3:-pull}"
@@ -43,8 +44,11 @@ COMPOSE=(
   docker compose
   --project-directory "$DEPLOY_DIR"
   --env-file "$ENV_FILE"
-  --file "$COMPOSE_FILE"
 )
+if [[ -f "$AUTH_ENV_FILE" ]]; then
+  COMPOSE+=(--env-file "$AUTH_ENV_FILE")
+fi
+COMPOSE+=(--file "$COMPOSE_FILE")
 
 PREVIOUS_TAG=""
 if [[ -f "$CURRENT_TAG_FILE" ]]; then

@@ -83,10 +83,31 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
-      - name: Upload deployment files
+      - name: Upload deployment files and runtime secrets
+        env:
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          ALIBABA_CLOUD_ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
+          ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
+          ALIYUN_PNVS_SIGN_NAME: ${{ secrets.ALIYUN_PNVS_SIGN_NAME }}
+          ALIYUN_PNVS_TEMPLATE_CODE: ${{ secrets.ALIYUN_PNVS_TEMPLATE_CODE }}
         run: |
+          runtime_auth_env="$RUNNER_TEMP/maomao-youshu-auth.env"
+          trap 'rm -f "$runtime_auth_env"' EXIT
+          install -m 600 /dev/null "$runtime_auth_env"
+          printf '%s=%s\n' \
+            AUTH_SECRET "$AUTH_SECRET" \
+            ALIBABA_CLOUD_ACCESS_KEY_ID "$ALIBABA_CLOUD_ACCESS_KEY_ID" \
+            ALIBABA_CLOUD_ACCESS_KEY_SECRET "$ALIBABA_CLOUD_ACCESS_KEY_SECRET" \
+            ALIYUN_PNVS_SIGN_NAME "$ALIYUN_PNVS_SIGN_NAME" \
+            ALIYUN_PNVS_TEMPLATE_CODE "$ALIYUN_PNVS_TEMPLATE_CODE" \
+            > "$runtime_auth_env"
           scp -i ~/.ssh/deploy_key deploy/compose.prod.yaml deploy/deploy.sh \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/maomao-youshu/"
+          scp -i ~/.ssh/deploy_key "$runtime_auth_env" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/maomao-youshu/.env.auth.next"
+          ssh -i ~/.ssh/deploy_key \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            'chmod 600 /opt/maomao-youshu/.env.auth.next && mv /opt/maomao-youshu/.env.auth.next /opt/maomao-youshu/.env.auth'
       - name: Transfer image to ECS
         env:
           IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
