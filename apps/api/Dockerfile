@@ -16,12 +16,14 @@ COPY apps/api/prisma.config.ts ./apps/api/prisma.config.ts
 COPY apps/api/prisma/schema.prisma ./apps/api/prisma/schema.prisma
 COPY packages/agent-core/package.json ./packages/agent-core/package.json
 COPY packages/domain/package.json ./packages/domain/package.json
+COPY packages/xlsx-import/package.json ./packages/xlsx-import/package.json
 
 RUN pnpm install --frozen-lockfile --filter @portfolio/api...
 
 COPY apps/api ./apps/api
 COPY packages/agent-core ./packages/agent-core
 COPY packages/domain ./packages/domain
+COPY packages/xlsx-import ./packages/xlsx-import
 
 RUN pnpm --filter @portfolio/api prisma:generate \
     && pnpm --filter @portfolio/api typecheck
