@@ -8,7 +8,7 @@ Cookie、验证码、券商账号和原始接口正文不会上传，也不会�
 
 ## 首次登录
 
-1. 从 `.env.example` 复制本地 `.env`，设置随机 `INGEST_SHARED_SECRET`。
+1. 从 `.env.example` 复制本地 `.env`，设置随机 `INGEST_SHARED_SECRET` 和当前用户的 `PORTFOLIO_USER_PHONE`；该手机号需先在 Android 端登录一次。
 2. 运行 `pnpm --filter @portfolio/collector run login`。
 3. 在打开的浏览器中由用户本人完成登录或验证码。
 4. 页面进入投资账本后，浏览器自动关闭；Cookie 和捕获到的本地用户标识只保存在 `TZZB_PROFILE_DIR`。
@@ -25,7 +25,7 @@ Cookie、验证码、券商账号和原始接口正文不会上传，也不会�
 4. `query_bank_history`：读取当日资金变化，修正日收益率分母。
 5. `pass_quotes`：读取最新价与昨收，更新市值、盈亏和周期字段。
 6. 共享 Zod 契约校验标准化快照。
-7. 配置 API 时，使用 Bearer Secret 上传；未配置时只验证并输出脱敏摘要。
+7. 配置 API 时，使用 Bearer Secret 和目标用户手机号上传；未配置时只验证并输出脱敏摘要。
 
 任何关键接口失败都会使本次账户采集失败，不会静默用零或旧值补齐。
 
@@ -68,6 +68,7 @@ pnpm --filter @portfolio/collector run import:xlsx -- /绝对路径/持仓导出
 - `TZZB_RATE_UNIT`：当前网页返回百分数单位，默认 `percent`。
 - `PORTFOLIO_API_URL`：标准化快照上传地址。
 - `INGEST_SHARED_SECRET`：Collector 与 API 之间的本地写入密钥。
+- `PORTFOLIO_USER_PHONE`：快照所属的中国大陆手机号；API 只接受已经验证码登录过的用户。
 
 ## 当前验证边界
 

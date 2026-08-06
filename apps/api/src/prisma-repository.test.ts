@@ -16,6 +16,7 @@ test(
     const suffix = randomUUID();
     const snapshotId = `snapshot-db-${suffix}`;
     const sourceAccountId = `account-db-${suffix}`;
+    const userId = `user-db-${suffix}`;
     const membershipId = `membership-${suffix}`;
     const industryBarId = `industry-bar-${suffix}`;
     const prisma = createPrismaClient(databaseUrl);
@@ -26,8 +27,11 @@ test(
       await prisma.securityIndustryMembership.deleteMany({
         where: { id: membershipId },
       });
-      await prisma.snapshot.deleteMany({ where: { id: snapshotId } });
+      await prisma.snapshot.deleteMany({
+        where: { account: { userId, sourceAccountId } },
+      });
       await prisma.account.deleteMany({ where: { sourceAccountId } });
+      await prisma.user.deleteMany({ where: { id: userId } });
       await prisma.$disconnect();
     });
 
@@ -82,53 +86,72 @@ test(
     };
 
     await repository.healthCheck();
-    assert.equal(await repository.saveSnapshot(snapshot), "created");
-    assert.equal(await repository.saveSnapshot(snapshot), "existing");
+    const legacySnapshot = {
+      ...snapshot,
+      id: `${snapshotId}-legacy`,
+      capturedAt: "2026-08-04T08:30:00.000Z",
+    };
+    assert.equal(
+      await repository.saveSnapshot("legacy-unassigned", legacySnapshot),
+      "created",
+    );
+    await prisma.user.create({ data: { id: userId, phone: null } });
+    assert.equal(await repository.saveSnapshot(userId, snapshot), "created");
+    assert.equal(await repository.saveSnapshot(userId, snapshot), "existing");
     await assert.rejects(
-      repository.saveSnapshot({ ...snapshot, totalAsset: 100_001.25 }),
+      repository.saveSnapshot(userId, { ...snapshot, totalAsset: 100_001.25 }),
       /拒绝覆盖历史数据/,
     );
 
-    const storedSnapshot = await repository.getLatestSnapshot(sourceAccountId);
+    const storedSnapshot = await repository.getLatestSnapshot(userId, sourceAccountId);
     assert.deepEqual(storedSnapshot, snapshot);
 
     const run = analyzePortfolio(
       snapshot,
       new Date("2026-08-05T09:00:00.000Z"),
     );
-    await repository.saveAgentRun(run);
-    await repository.saveAgentRun(run);
-    assert.deepEqual(await repository.getLatestAgentRun(snapshotId), run);
-    assert.deepEqual(await repository.getHistory(sourceAccountId, 30), [
+    await repository.saveAgentRun(userId, run);
+    await repository.saveAgentRun(userId, run);
+    assert.deepEqual(await repository.getLatestAgentRun(userId, snapshotId), run);
+    assert.deepEqual(await repository.getHistory(userId, sourceAccountId, 30), [
+      {
+        date: "2026-08-04",
+        totalAsset: legacySnapshot.totalAsset,
+        positionRate: legacySnapshot.positionRate,
+      },
       {
         date: "2026-08-05",
         totalAsset: snapshot.totalAsset,
         positionRate: snapshot.positionRate,
       },
     ]);
-    assert.deepEqual(
-      (await repository.getMainIndustries()).map((industry) => industry.name),
-      ["半导体", "互联网", "智能驾驶", "商业航天", "医药", "银行"],
-    );
-    const savedOverride = await repository.saveIndustryOverride({
+    assert.deepEqual(await repository.getIndustryTags(userId), []);
+    const tag = await repository.createIndustryTag(userId, {
+      name: "银行",
+      color: "#8B98A9",
+    });
+    const savedAssignment = await repository.saveIndustryTagAssignment({
+      userId,
       source: snapshot.source,
       sourceAccountId,
       market: "SH",
       symbol: "600000",
-      mainIndustryId: "banking",
+      tagId: tag.id,
     });
-    assert.equal(savedOverride.mainIndustryName, "银行");
+    assert.equal(savedAssignment.tagName, "银行");
     assert.equal(
       (
-        await repository.getIndustryOverrides(
+        await repository.getIndustryTagAssignments(
+          userId,
           snapshot.source,
           sourceAccountId,
           [{ market: "SH", symbol: "600000" }],
         )
-      )[0]?.mainIndustryId,
-      "banking",
+      )[0]?.tagId,
+      tag.id,
     );
-    await repository.deleteIndustryOverride(
+    await repository.deleteIndustryTagAssignment(
+      userId,
       snapshot.source,
       sourceAccountId,
       "SH",
@@ -136,7 +159,28 @@ test(
     );
     assert.equal(
       (
-        await repository.getIndustryOverrides(
+        await repository.getIndustryTagAssignments(
+          userId,
+          snapshot.source,
+          sourceAccountId,
+          [{ market: "SH", symbol: "600000" }],
+        )
+      ).length,
+      0,
+    );
+    await repository.saveIndustryTagAssignment({
+      userId,
+      source: snapshot.source,
+      sourceAccountId,
+      market: "SH",
+      symbol: "600000",
+      tagId: tag.id,
+    });
+    assert.equal(await repository.deleteIndustryTag(userId, tag.id), true);
+    assert.equal(
+      (
+        await repository.getIndustryTagAssignments(
+          userId,
           snapshot.source,
           sourceAccountId,
           [{ market: "SH", symbol: "600000" }],

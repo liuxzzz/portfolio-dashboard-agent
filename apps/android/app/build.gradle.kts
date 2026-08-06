@@ -6,10 +6,6 @@ plugins {
 }
 
 val configuredApiBaseUrl = providers.gradleProperty("PORTFOLIO_API_BASE_URL")
-val configuredApiToken = providers.gradleProperty("PORTFOLIO_API_TOKEN")
-    .orElse(providers.environmentVariable("PORTFOLIO_API_TOKEN"))
-    .orElse("")
-
 android {
     namespace = "com.horizon.portfolio"
     compileSdk = 37
@@ -29,7 +25,6 @@ android {
         debug {
             val debugApiBaseUrl = configuredApiBaseUrl.orElse("http://127.0.0.1:4000")
             buildConfigField("String", "API_BASE_URL", "\"${debugApiBaseUrl.get()}\"")
-            buildConfigField("String", "API_TOKEN", "\"${configuredApiToken.get()}\"")
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
         release {
@@ -37,7 +32,6 @@ android {
                 "https://60.205.90.12/maomao-api",
             )
             buildConfigField("String", "API_BASE_URL", "\"${releaseApiBaseUrl.get()}\"")
-            buildConfigField("String", "API_TOKEN", "\"${configuredApiToken.get()}\"")
             manifestPlaceholders["usesCleartextTraffic"] =
                 releaseApiBaseUrl.get().startsWith("http://").toString()
             isMinifyEnabled = true

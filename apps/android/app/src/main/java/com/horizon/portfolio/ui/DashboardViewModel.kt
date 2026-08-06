@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.horizon.portfolio.data.repository.DashboardSource
 import com.horizon.portfolio.data.repository.PortfolioRepository
 import com.horizon.portfolio.domain.model.DashboardPayload
+import com.horizon.portfolio.domain.model.IndustryTag
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,8 +17,11 @@ import kotlinx.coroutines.launch
 data class DashboardUiState(
     val isLoading: Boolean = true,
     val isRunningAgent: Boolean = false,
-    val savingIndustrySymbol: String? = null,
+    val savingTagSymbol: String? = null,
+    val isCreatingTag: Boolean = false,
+    val deletingTagId: String? = null,
     val dashboard: DashboardPayload? = null,
+    val industryTags: List<IndustryTag> = emptyList(),
     val source: DashboardSource? = null,
     val message: String? = null,
 )
@@ -35,12 +39,20 @@ class DashboardViewModel(
     fun refresh() {
         viewModelScope.launch {
             mutableState.update { it.copy(isLoading = true, message = null) }
+            val loadedTags = try {
+                repository.loadIndustryTags()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
             try {
                 val result = repository.loadDashboard()
                 mutableState.update {
                     it.copy(
                         isLoading = false,
                         dashboard = result.payload,
+                        industryTags = loadedTags ?: result.payload.industryTags,
                         source = result.source,
                         message = result.warning,
                     )
@@ -51,6 +63,7 @@ class DashboardViewModel(
                 mutableState.update {
                     it.copy(
                         isLoading = false,
+                        industryTags = loadedTags ?: it.industryTags,
                         message = error.message ?: "加载组合失败",
                     )
                 }
@@ -87,23 +100,18 @@ class DashboardViewModel(
         }
     }
 
-    fun setMainIndustry(
-        market: String,
-        symbol: String,
-        mainIndustryId: String,
-        mainIndustryName: String,
-    ) {
-        if (mutableState.value.savingIndustrySymbol != null) return
+    fun createIndustryTag(name: String, color: String) {
+        if (mutableState.value.isCreatingTag) return
         viewModelScope.launch {
-            mutableState.update { it.copy(savingIndustrySymbol = symbol, message = null) }
+            mutableState.update { it.copy(isCreatingTag = true, message = null) }
             try {
-                val result = repository.setMainIndustry(market, symbol, mainIndustryId)
+                val createdTag = repository.createIndustryTag(name, color)
                 mutableState.update {
                     it.copy(
-                        dashboard = result.payload,
-                        source = result.source,
-                        savingIndustrySymbol = null,
-                        message = "已按你的认知归类为$mainIndustryName。",
+                        industryTags = (it.industryTags + createdTag)
+                            .sortedBy(IndustryTag::sortOrder),
+                        isCreatingTag = false,
+                        message = "已新增行业标签“$name”。",
                     )
                 }
             } catch (cancelled: CancellationException) {
@@ -111,8 +119,88 @@ class DashboardViewModel(
             } catch (error: Exception) {
                 mutableState.update {
                     it.copy(
-                        savingIndustrySymbol = null,
-                        message = error.message ?: "主行业保存失败",
+                        isCreatingTag = false,
+                        message = error.message ?: "行业标签新增失败",
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteIndustryTag(tagId: String, tagName: String) {
+        if (mutableState.value.deletingTagId != null) return
+        viewModelScope.launch {
+            mutableState.update { it.copy(deletingTagId = tagId, message = null) }
+            try {
+                repository.deleteIndustryTag(tagId)
+                mutableState.update {
+                    it.copy(industryTags = it.industryTags.filterNot { tag -> tag.id == tagId })
+                }
+                val dashboardResult = if (mutableState.value.dashboard != null) {
+                    try {
+                        repository.loadDashboard()
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        null
+                    }
+                } else {
+                    null
+                }
+                mutableState.update {
+                    it.copy(
+                        dashboard = dashboardResult?.payload ?: it.dashboard,
+                        industryTags = dashboardResult?.payload?.industryTags
+                            ?: it.industryTags,
+                        source = dashboardResult?.source ?: it.source,
+                        deletingTagId = null,
+                        message = if (dashboardResult == null && it.dashboard != null) {
+                            "标签“$tagName”已删除；请重新加载组合以刷新自动分类。"
+                        } else {
+                            "已删除行业标签“$tagName”，相关股票已恢复自动分类。"
+                        },
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        deletingTagId = null,
+                        message = error.message ?: "行业标签删除失败",
+                    )
+                }
+            }
+        }
+    }
+
+    fun setIndustryTag(
+        market: String,
+        symbol: String,
+        tagId: String,
+        tagName: String,
+    ) {
+        if (mutableState.value.savingTagSymbol != null) return
+        viewModelScope.launch {
+            mutableState.update { it.copy(savingTagSymbol = symbol, message = null) }
+            try {
+                val result = repository.setIndustryTag(market, symbol, tagId)
+                mutableState.update {
+                    it.copy(
+                        dashboard = result.payload,
+                        industryTags = result.payload.industryTags,
+                        source = result.source,
+                        savingTagSymbol = null,
+                        message = "已为该股票选择标签“$tagName”。",
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                mutableState.update {
+                    it.copy(
+                        savingTagSymbol = null,
+                        message = error.message ?: "行业标签保存失败",
                     )
                 }
             }
@@ -120,16 +208,17 @@ class DashboardViewModel(
     }
 
     fun restoreAutomaticIndustry(market: String, symbol: String) {
-        if (mutableState.value.savingIndustrySymbol != null) return
+        if (mutableState.value.savingTagSymbol != null) return
         viewModelScope.launch {
-            mutableState.update { it.copy(savingIndustrySymbol = symbol, message = null) }
+            mutableState.update { it.copy(savingTagSymbol = symbol, message = null) }
             try {
                 val result = repository.restoreAutomaticIndustry(market, symbol)
                 mutableState.update {
                     it.copy(
                         dashboard = result.payload,
+                        industryTags = result.payload.industryTags,
                         source = result.source,
-                        savingIndustrySymbol = null,
+                        savingTagSymbol = null,
                         message = "已恢复数据源自动分类。",
                     )
                 }
@@ -138,7 +227,7 @@ class DashboardViewModel(
             } catch (error: Exception) {
                 mutableState.update {
                     it.copy(
-                        savingIndustrySymbol = null,
+                        savingTagSymbol = null,
                         message = error.message ?: "恢复自动分类失败",
                     )
                 }

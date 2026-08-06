@@ -67,8 +67,7 @@ http://127.0.0.1:4000
 
 ```bash
 cd apps/android
-PORTFOLIO_API_TOKEN=本地访问令牌 \
-  ./gradlew installDebug -PPORTFOLIO_API_BASE_URL=http://127.0.0.1:4000
+./gradlew installDebug -PPORTFOLIO_API_BASE_URL=http://127.0.0.1:4000
 ```
 
 每次模拟器或 USB 连接重新建立后都需要再执行一次 `pnpm android:reverse`。请求成功时客户端更新 Room 缓存；后端暂时不可用时展示最近一次缓存并明确标注来源。没有远端数据和缓存时直接显示错误，不会用演示数据冒充真实持仓。
@@ -89,9 +88,9 @@ cd apps/android
 ## 6. 安全和发布
 
 - Debug 构建允许 HTTP，便于本机联调；Release 默认连接 `https://60.205.90.12/maomao-api`，使用受信任的 IP 证书。
-- 个人阶段通过 `PORTFOLIO_API_TOKEN` 注入静态访问令牌。它不能提交到仓库，而且只能作为临时方案；正式多用户版本必须改为登录态与短期令牌。
+- Android 只保存手机号验证码登录后取得的随机会话令牌，并使用 Android Keystore 的 AES-GCM 密钥加密落盘；不再把全局访问密钥编译进 APK，退出或令牌过期时会清理对应本地缓存。
 - 不要把模型 API Key、数据库密码、Collector Secret 或券商凭证写入 `BuildConfig`、资源文件或 APK。
-- 发布前需要补齐用户登录、短期访问令牌、设备绑定、证书策略、签名配置和数据删除流程。
+- 发布前还需要补齐设备绑定、生物识别门禁、证书策略、签名配置和数据删除流程。
 - 第一阶段保持只读；任何未来交易动作都必须由服务端授权，并在 Android 端进行二次确认。
 
 ## 常见问题

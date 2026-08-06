@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   AgentRun,
-  MainIndustry,
+  IndustryTag,
   PortfolioHistoryPoint,
   PortfolioSnapshot,
 } from "@portfolio/domain";
-import { defaultMainIndustries } from "@portfolio/domain";
 import type {
   IndustryMarketBar,
   IndustryMembership,
@@ -14,42 +13,61 @@ import type {
 
 export type SnapshotSaveResult = "created" | "existing";
 
-export interface SecurityIndustryOverride {
+export interface SecurityIndustryTagAssignment {
   source: string;
   sourceAccountId: string;
   market: string;
   symbol: string;
-  mainIndustryId: string;
-  mainIndustryName: string;
+  tagId: string;
+  tagName: string;
   color: string;
   updatedAt: string;
 }
 
-export interface SaveIndustryOverrideInput {
+export interface SaveIndustryTagAssignmentInput {
+  userId: string;
   source: string;
   sourceAccountId: string;
   market: string;
   symbol: string;
-  mainIndustryId: string;
+  tagId: string;
 }
+
+export interface CreateIndustryTagInput {
+  name: string;
+  color: string;
+}
+
+export class IndustryTagNameConflictError extends Error {}
 
 export interface PortfolioRepository {
   healthCheck(): Promise<void>;
-  saveSnapshot(snapshot: PortfolioSnapshot): Promise<SnapshotSaveResult>;
-  saveAgentRun(run: AgentRun): Promise<void>;
-  getLatestSnapshot(accountId?: string): Promise<PortfolioSnapshot | null>;
-  getLatestAgentRun(snapshotId: string): Promise<AgentRun | null>;
-  getHistory(accountId: string, limit: number): Promise<PortfolioHistoryPoint[]>;
-  getMainIndustries(): Promise<MainIndustry[]>;
-  getIndustryOverrides(
+  saveSnapshot(userId: string, snapshot: PortfolioSnapshot): Promise<SnapshotSaveResult>;
+  saveAgentRun(userId: string, run: AgentRun): Promise<void>;
+  getLatestSnapshot(userId: string, accountId?: string): Promise<PortfolioSnapshot | null>;
+  getLatestAgentRun(userId: string, snapshotId: string): Promise<AgentRun | null>;
+  getHistory(
+    userId: string,
+    accountId: string,
+    limit: number,
+  ): Promise<PortfolioHistoryPoint[]>;
+  getIndustryTags(userId: string): Promise<IndustryTag[]>;
+  createIndustryTag(
+    userId: string,
+    input: CreateIndustryTagInput,
+  ): Promise<IndustryTag>;
+  deleteIndustryTag(userId: string, tagId: string): Promise<boolean>;
+  getIndustryTagAssignments(
+    userId: string,
     source: string,
     sourceAccountId: string,
     securities: readonly SecurityReference[],
-  ): Promise<SecurityIndustryOverride[]>;
-  saveIndustryOverride(
-    input: SaveIndustryOverrideInput,
-  ): Promise<SecurityIndustryOverride>;
-  deleteIndustryOverride(
+  ): Promise<SecurityIndustryTagAssignment[]>;
+  saveIndustryTagAssignment(
+    input: SaveIndustryTagAssignmentInput,
+  ): Promise<SecurityIndustryTagAssignment>;
+  deleteIndustryTagAssignment(
+    userId: string,
     source: string,
     sourceAccountId: string,
     market: string,
@@ -107,52 +125,67 @@ export class MemoryPortfolioRepository implements PortfolioRepository {
   private readonly runs = new Map<string, AgentRun>();
   private readonly industryMemberships = new Map<string, IndustryMembership>();
   private readonly industryBars = new Map<string, IndustryMarketBar>();
-  private readonly industryOverrides = new Map<string, SecurityIndustryOverride>();
+  private readonly industryTags = new Map<string, IndustryTag>();
+  private readonly industryTagAssignments = new Map<
+    string,
+    SecurityIndustryTagAssignment
+  >();
 
   async healthCheck() {}
 
-  async saveSnapshot(snapshot: PortfolioSnapshot) {
-    const existing = this.snapshots.get(snapshot.id);
+  async saveSnapshot(userId: string, snapshot: PortfolioSnapshot) {
+    const key = `${userId}:${snapshot.id}`;
+    const existing = this.snapshots.get(key);
     if (existing) {
       if (snapshotContentHash(existing) !== snapshotContentHash(snapshot)) {
         throw new Error("同一快照 ID 对应了不同内容，已拒绝覆盖历史数据");
       }
       return "existing" as const;
     }
-    this.snapshots.set(snapshot.id, snapshot);
+    this.snapshots.set(key, snapshot);
     return "created" as const;
   }
 
-  async saveAgentRun(run: AgentRun) {
-    this.runs.set(run.id, run);
+  async saveAgentRun(userId: string, run: AgentRun) {
+    this.runs.set(`${userId}:${run.id}`, run);
   }
 
-  async getLatestSnapshot(accountId?: string) {
+  async getLatestSnapshot(userId: string, accountId?: string) {
     return (
-      [...this.snapshots.values()]
+      [...this.snapshots.entries()]
         .filter(
-          (snapshot) =>
-            accountId === undefined || snapshot.sourceAccountId === accountId,
+          ([key, snapshot]) =>
+            key.startsWith(`${userId}:`) &&
+            (accountId === undefined || snapshot.sourceAccountId === accountId),
         )
+        .map(([, snapshot]) => snapshot)
         .sort((left, right) =>
           right.capturedAt.localeCompare(left.capturedAt),
         )[0] ?? null
     );
   }
 
-  async getLatestAgentRun(snapshotId: string) {
+  async getLatestAgentRun(userId: string, snapshotId: string) {
     return (
-      [...this.runs.values()]
-        .filter((run) => run.snapshotId === snapshotId)
+      [...this.runs.entries()]
+        .filter(
+          ([key, run]) =>
+            key.startsWith(`${userId}:`) && run.snapshotId === snapshotId,
+        )
+        .map(([, run]) => run)
         .sort((left, right) =>
           right.requestedAt.localeCompare(left.requestedAt),
         )[0] ?? null
     );
   }
 
-  async getHistory(accountId: string, limit: number) {
-    return [...this.snapshots.values()]
-      .filter((snapshot) => snapshot.sourceAccountId === accountId)
+  async getHistory(userId: string, accountId: string, limit: number) {
+    return [...this.snapshots.entries()]
+      .filter(
+        ([key, snapshot]) =>
+          key.startsWith(`${userId}:`) && snapshot.sourceAccountId === accountId,
+      )
+      .map(([, snapshot]) => snapshot)
       .sort((left, right) => left.capturedAt.localeCompare(right.capturedAt))
       .slice(-limit)
       .map((snapshot) => ({
@@ -162,11 +195,45 @@ export class MemoryPortfolioRepository implements PortfolioRepository {
       }));
   }
 
-  async getMainIndustries() {
-    return defaultMainIndustries.map((industry) => ({ ...industry }));
+  async getIndustryTags(userId: string) {
+    return [...this.industryTags.entries()]
+      .filter(([key]) => key.startsWith(`${userId}:`))
+      .map(([, tag]) => ({ ...tag }))
+      .sort((left, right) => left.sortOrder - right.sortOrder);
   }
 
-  async getIndustryOverrides(
+  async createIndustryTag(userId: string, input: CreateIndustryTagInput) {
+    const existing = (await this.getIndustryTags(userId)).find(
+      (tag) => tag.name === input.name,
+    );
+    if (existing) throw new IndustryTagNameConflictError("标签名称已存在");
+    const tags = await this.getIndustryTags(userId);
+    const tag: IndustryTag = {
+      id: randomUUID(),
+      name: input.name,
+      color: input.color,
+      sortOrder: tags.length === 0
+        ? 0
+        : Math.max(...tags.map((candidate) => candidate.sortOrder)) + 1,
+    };
+    this.industryTags.set(`${userId}:${tag.id}`, tag);
+    return { ...tag };
+  }
+
+  async deleteIndustryTag(userId: string, tagId: string) {
+    const deleted = this.industryTags.delete(`${userId}:${tagId}`);
+    if (deleted) {
+      for (const [key, assignment] of this.industryTagAssignments.entries()) {
+        if (key.startsWith(`${userId}:`) && assignment.tagId === tagId) {
+          this.industryTagAssignments.delete(key);
+        }
+      }
+    }
+    return deleted;
+  }
+
+  async getIndustryTagAssignments(
+    userId: string,
     source: string,
     sourceAccountId: string,
     securities: readonly SecurityReference[],
@@ -174,40 +241,46 @@ export class MemoryPortfolioRepository implements PortfolioRepository {
     const requested = new Set(
       securities.map((security) => `${security.market}:${security.symbol}`),
     );
-    return [...this.industryOverrides.values()].filter(
-      (override) =>
-        override.source === source &&
-        override.sourceAccountId === sourceAccountId &&
-        requested.has(`${override.market}:${override.symbol}`),
-    );
+    return [...this.industryTagAssignments.entries()]
+      .filter(
+      ([key, assignment]) =>
+        key.startsWith(`${userId}:`) &&
+        assignment.source === source &&
+        assignment.sourceAccountId === sourceAccountId &&
+        requested.has(`${assignment.market}:${assignment.symbol}`),
+      )
+      .map(([, assignment]) => assignment);
   }
 
-  async saveIndustryOverride(input: SaveIndustryOverrideInput) {
-    const industry = defaultMainIndustries.find(
-      (candidate) => candidate.id === input.mainIndustryId,
-    );
-    if (!industry) throw new Error("主行业不存在或已停用");
-    const override: SecurityIndustryOverride = {
-      ...input,
-      mainIndustryName: industry.name,
-      color: industry.color,
+  async saveIndustryTagAssignment(input: SaveIndustryTagAssignmentInput) {
+    const tag = this.industryTags.get(`${input.userId}:${input.tagId}`);
+    if (!tag) throw new Error("行业标签不存在");
+    const assignment: SecurityIndustryTagAssignment = {
+      source: input.source,
+      sourceAccountId: input.sourceAccountId,
+      market: input.market,
+      symbol: input.symbol,
+      tagId: input.tagId,
+      tagName: tag.name,
+      color: tag.color,
       updatedAt: new Date().toISOString(),
     };
-    this.industryOverrides.set(
-      `${input.source}:${input.sourceAccountId}:${input.market}:${input.symbol}`,
-      override,
+    this.industryTagAssignments.set(
+      `${input.userId}:${input.source}:${input.sourceAccountId}:${input.market}:${input.symbol}`,
+      assignment,
     );
-    return override;
+    return assignment;
   }
 
-  async deleteIndustryOverride(
+  async deleteIndustryTagAssignment(
+    userId: string,
     source: string,
     sourceAccountId: string,
     market: string,
     symbol: string,
   ) {
-    this.industryOverrides.delete(
-      `${source}:${sourceAccountId}:${market}:${symbol}`,
+    this.industryTagAssignments.delete(
+      `${userId}:${source}:${sourceAccountId}:${market}:${symbol}`,
     );
   }
 

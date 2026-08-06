@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 data class DashboardPayload(
     val snapshot: PortfolioSnapshot,
     val industries: List<IndustryAllocation>,
-    val mainIndustries: List<MainIndustry> = emptyList(),
+    val industryTags: List<IndustryTag> = emptyList(),
     val history: List<PortfolioHistoryPoint>,
     val latestAgentRun: AgentRun? = null,
     val industryData: IndustryDataStatus? = null,
@@ -50,12 +50,12 @@ data class PositionSnapshot(
     val relatedSector: String? = null,
     val sectorRate: Double? = null,
     val sourceIndustry: String? = null,
-    val mainIndustryId: String? = null,
-    val industryCustomized: Boolean = false,
+    val industryTagId: String? = null,
+    val industryTagged: Boolean = false,
 )
 
 @Serializable
-data class MainIndustry(
+data class IndustryTag(
     val id: String,
     val name: String,
     val color: String,

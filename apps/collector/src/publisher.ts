@@ -13,6 +13,7 @@ export async function publishSnapshot(
   options: {
     apiUrl: string;
     ingestSharedSecret: string;
+    portfolioUserPhone: string;
     fetch?: typeof globalThis.fetch;
   },
 ) {
@@ -24,6 +25,7 @@ export async function publishSnapshot(
     method: "POST",
     headers: {
       Authorization: `Bearer ${options.ingestSharedSecret}`,
+      "X-Portfolio-User": options.portfolioUserPhone,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(snapshot),

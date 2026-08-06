@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -17,6 +16,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -38,8 +38,10 @@ import com.horizon.portfolio.R
 import com.horizon.portfolio.ui.components.PortfolioSplashScreen
 import com.horizon.portfolio.ui.screens.AgentScreen
 import com.horizon.portfolio.ui.screens.HoldingsScreen
+import com.horizon.portfolio.ui.screens.LoginScreen
 import com.horizon.portfolio.ui.screens.OverviewScreen
 import com.horizon.portfolio.ui.screens.PositionDetailScreen
+import com.horizon.portfolio.ui.screens.ProfileScreen
 import com.horizon.portfolio.ui.theme.Accent
 import com.horizon.portfolio.ui.theme.AccentSoft
 import com.horizon.portfolio.ui.theme.Ink
@@ -56,25 +58,39 @@ private val topLevelDestinations = listOf(
     TopLevelDestination("overview", "概览", R.drawable.ic_overview_rounded),
     TopLevelDestination("holdings", "持仓", R.drawable.ic_holdings_rounded),
     TopLevelDestination("agent", "Agent", R.drawable.ic_agent_rounded),
+    TopLevelDestination("profile", "我的", R.drawable.ic_info_rounded),
 )
 
 @Composable
 fun PortfolioApp() {
     val application = LocalContext.current.applicationContext as PortfolioApplication
-    val viewModel: DashboardViewModel = viewModel(
-        factory = DashboardViewModel.factory(application.container.portfolioRepository),
+    val authViewModel: AuthViewModel = viewModel(
+        factory = AuthViewModel.factory(application.container.authRepository),
     )
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    var amountsVisible by rememberSaveable { mutableStateOf(false) }
+    val authState by authViewModel.state.collectAsStateWithLifecycle()
+    val session by application.container.authSessionStore.session.collectAsStateWithLifecycle()
     var splashVisible by rememberSaveable { mutableStateOf(true) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        PortfolioContent(
-            state = state,
-            viewModel = viewModel,
-            amountsVisible = amountsVisible,
-            onToggleAmountsVisibility = { amountsVisible = !amountsVisible },
-        )
+        val activeSession = session
+        if (activeSession == null) {
+            LoginScreen(
+                state = authState,
+                onPhoneChange = authViewModel::updatePhone,
+                onCodeChange = authViewModel::updateCode,
+                onRequestCode = authViewModel::requestCode,
+                onLogin = authViewModel::login,
+            )
+        } else {
+            key(activeSession.instanceId) {
+                AuthenticatedPortfolioApp(
+                    sessionKey = activeSession.instanceId,
+                    maskedPhone = activeSession.user.phone,
+                    authState = authState,
+                    authViewModel = authViewModel,
+                )
+            }
+        }
         AnimatedVisibility(
             visible = splashVisible,
             enter = EnterTransition.None,
@@ -89,30 +105,60 @@ fun PortfolioApp() {
 }
 
 @Composable
+private fun AuthenticatedPortfolioApp(
+    sessionKey: String,
+    maskedPhone: String,
+    authState: AuthUiState,
+    authViewModel: AuthViewModel,
+) {
+    val application = LocalContext.current.applicationContext as PortfolioApplication
+    val viewModel: DashboardViewModel = viewModel(
+        key = "dashboard-$sessionKey",
+        factory = DashboardViewModel.factory(application.container.portfolioRepository),
+    )
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    var amountsVisible by rememberSaveable { mutableStateOf(false) }
+    PortfolioContent(
+        state = state,
+        viewModel = viewModel,
+        amountsVisible = amountsVisible,
+        maskedPhone = maskedPhone,
+        isLoggingOut = authState.isLoggingOut,
+        onLogout = authViewModel::logout,
+        onToggleAmountsVisibility = { amountsVisible = !amountsVisible },
+    )
+}
+
+@Composable
 private fun PortfolioContent(
     state: DashboardUiState,
     viewModel: DashboardViewModel,
     amountsVisible: Boolean,
+    maskedPhone: String,
+    isLoggingOut: Boolean,
+    onLogout: () -> Unit,
     onToggleAmountsVisibility: () -> Unit,
 ) {
     val dashboard = state.dashboard
     if (dashboard == null) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (state.isLoading) {
+        if (state.isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
-            } else {
-                androidx.compose.foundation.layout.Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(state.message ?: "加载组合失败")
-                    Button(
-                        onClick = viewModel::refresh,
-                        modifier = Modifier.padding(top = 12.dp),
-                    ) {
-                        Text("重试")
-                    }
-                }
             }
+        } else {
+            ProfileScreen(
+                maskedPhone = maskedPhone,
+                industryTags = state.industryTags,
+                isCreatingTag = state.isCreatingTag,
+                deletingTagId = state.deletingTagId,
+                message = state.message,
+                isLoggingOut = isLoggingOut,
+                showDashboardRetry = true,
+                onCreateTag = viewModel::createIndustryTag,
+                onDeleteTag = viewModel::deleteIndustryTag,
+                onRefreshDashboard = viewModel::refresh,
+                onLogout = onLogout,
+            )
         }
         return
     }
@@ -185,15 +231,29 @@ private fun PortfolioContent(
                     onRunAgent = viewModel::runAgent,
                 )
             }
+            composable("profile") {
+                ProfileScreen(
+                    maskedPhone = maskedPhone,
+                    industryTags = state.industryTags,
+                    isCreatingTag = state.isCreatingTag,
+                    deletingTagId = state.deletingTagId,
+                    message = state.message,
+                    isLoggingOut = isLoggingOut,
+                    onCreateTag = viewModel::createIndustryTag,
+                    onDeleteTag = viewModel::deleteIndustryTag,
+                    onRefreshDashboard = viewModel::refresh,
+                    onLogout = onLogout,
+                )
+            }
             composable("position/{symbol}") { entry ->
                 PositionDetailScreen(
                     snapshot = dashboard.snapshot,
                     symbol = entry.arguments?.getString("symbol").orEmpty(),
                     amountsVisible = amountsVisible,
-                    mainIndustries = dashboard.mainIndustries,
-                    isSavingIndustry = state.savingIndustrySymbol == entry.arguments?.getString("symbol"),
+                    industryTags = state.industryTags,
+                    isSavingTag = state.savingTagSymbol == entry.arguments?.getString("symbol"),
                     message = state.message,
-                    onSetMainIndustry = viewModel::setMainIndustry,
+                    onSetIndustryTag = viewModel::setIndustryTag,
                     onRestoreAutomaticIndustry = viewModel::restoreAutomaticIndustry,
                     onBack = navController::popBackStack,
                 )

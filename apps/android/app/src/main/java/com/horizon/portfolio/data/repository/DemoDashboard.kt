@@ -5,7 +5,7 @@ import com.horizon.portfolio.domain.model.AgentRun
 import com.horizon.portfolio.domain.model.DashboardPayload
 import com.horizon.portfolio.domain.model.EvidenceReference
 import com.horizon.portfolio.domain.model.IndustryAllocation
-import com.horizon.portfolio.domain.model.MainIndustry
+import com.horizon.portfolio.domain.model.IndustryTag
 import com.horizon.portfolio.domain.model.PortfolioHistoryPoint
 import com.horizon.portfolio.domain.model.PortfolioSnapshot
 import com.horizon.portfolio.domain.model.PositionSnapshot
@@ -36,13 +36,13 @@ internal object DemoDashboard {
                 PositionSnapshot("510300", "示例宽基 ETF", "SH", "宽基指数", 26_000.0, 4.385, 4.21, 113_992.0, 0.0886, 525.0, 0.0046, 4_550.0, 0.0416, 67),
             ),
         ),
-        mainIndustries = listOf(
-            MainIndustry("semiconductor", "半导体", "#3E6FCA", 0),
-            MainIndustry("internet", "互联网", "#5BC5A7", 1),
-            MainIndustry("smart-driving", "智能驾驶", "#F3B45A", 2),
-            MainIndustry("commercial-space", "商业航天", "#7C8BE8", 3),
-            MainIndustry("healthcare", "医药", "#D96C8B", 4),
-            MainIndustry("banking", "银行", "#8B98A9", 5),
+        industryTags = listOf(
+            IndustryTag("semiconductor", "半导体", "#3E6FCA", 0),
+            IndustryTag("internet", "互联网", "#5BC5A7", 1),
+            IndustryTag("smart-driving", "智能驾驶", "#F3B45A", 2),
+            IndustryTag("commercial-space", "商业航天", "#7C8BE8", 3),
+            IndustryTag("healthcare", "医药", "#D96C8B", 4),
+            IndustryTag("banking", "银行", "#8B98A9", 5),
         ),
         industries = listOf(
             IndustryAllocation("食品饮料", 373_008.0, 0.29, "#172033"),

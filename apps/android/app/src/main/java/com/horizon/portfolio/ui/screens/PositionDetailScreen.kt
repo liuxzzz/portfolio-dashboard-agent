@@ -29,7 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.horizon.portfolio.domain.model.MainIndustry
+import com.horizon.portfolio.domain.model.IndustryTag
 import com.horizon.portfolio.domain.model.PortfolioSnapshot
 import com.horizon.portfolio.ui.components.MetricCard
 import com.horizon.portfolio.ui.components.PageHeader
@@ -48,51 +48,51 @@ fun PositionDetailScreen(
     snapshot: PortfolioSnapshot,
     symbol: String,
     amountsVisible: Boolean,
-    mainIndustries: List<MainIndustry>,
-    isSavingIndustry: Boolean,
+    industryTags: List<IndustryTag>,
+    isSavingTag: Boolean,
     message: String?,
-    onSetMainIndustry: (String, String, String, String) -> Unit,
+    onSetIndustryTag: (String, String, String, String) -> Unit,
     onRestoreAutomaticIndustry: (String, String) -> Unit,
     onBack: () -> Unit,
 ) {
     val position = snapshot.positions.firstOrNull { it.symbol == symbol }
-    var showIndustryDialog by rememberSaveable(symbol) { mutableStateOf(false) }
-    var selectedIndustryId by rememberSaveable(symbol, position?.mainIndustryId) {
+    var showTagDialog by rememberSaveable(symbol) { mutableStateOf(false) }
+    var selectedTagId by rememberSaveable(symbol, position?.industryTagId) {
         mutableStateOf(
-            position?.mainIndustryId
-                ?: mainIndustries.firstOrNull { it.name == position?.industry }?.id,
+            position?.industryTagId
+                ?: industryTags.firstOrNull { it.name == position?.industry }?.id,
         )
     }
 
-    if (showIndustryDialog && position != null) {
+    if (showTagDialog && position != null) {
         AlertDialog(
-            onDismissRequest = { if (!isSavingIndustry) showIndustryDialog = false },
-            title = { Text("选择我的主行业") },
+            onDismissRequest = { if (!isSavingTag) showTagDialog = false },
+            title = { Text("选择行业标签") },
             text = {
                 Column {
                     Text(
-                        "你的选择会覆盖数据源分类，并立即用于首页行业聚合。",
+                        "标签会覆盖数据源自动行业，并立即用于首页行业聚合。",
                         color = MutedDark,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(bottom = 10.dp),
                     )
-                    mainIndustries.sortedBy { it.sortOrder }.forEach { industry ->
+                    industryTags.sortedBy { it.sortOrder }.forEach { tag ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable(enabled = !isSavingIndustry) {
-                                    selectedIndustryId = industry.id
+                                .clickable(enabled = !isSavingTag) {
+                                    selectedTagId = tag.id
                                 }
                                 .padding(vertical = 5.dp),
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                         ) {
                             RadioButton(
-                                selected = selectedIndustryId == industry.id,
-                                onClick = { selectedIndustryId = industry.id },
-                                enabled = !isSavingIndustry,
+                                selected = selectedTagId == tag.id,
+                                onClick = { selectedTagId = tag.id },
+                                enabled = !isSavingTag,
                             )
                             Text(
-                                industry.name,
+                                tag.name,
                                 color = Ink,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
@@ -104,18 +104,18 @@ fun PositionDetailScreen(
             },
             confirmButton = {
                 TextButton(
-                    enabled = selectedIndustryId != null && !isSavingIndustry,
+                    enabled = selectedTagId != null && !isSavingTag,
                     onClick = {
-                        val selected = mainIndustries.firstOrNull {
-                            it.id == selectedIndustryId
+                        val selected = industryTags.firstOrNull {
+                            it.id == selectedTagId
                         } ?: return@TextButton
-                        onSetMainIndustry(
+                        onSetIndustryTag(
                             position.market,
                             position.symbol,
                             selected.id,
                             selected.name,
                         )
-                        showIndustryDialog = false
+                        showTagDialog = false
                     },
                 ) {
                     Text("保存")
@@ -123,8 +123,8 @@ fun PositionDetailScreen(
             },
             dismissButton = {
                 TextButton(
-                    enabled = !isSavingIndustry,
-                    onClick = { showIndustryDialog = false },
+                    enabled = !isSavingTag,
+                    onClick = { showTagDialog = false },
                 ) {
                     Text("取消")
                 }
@@ -153,9 +153,9 @@ fun PositionDetailScreen(
         )
 
         SectionCard(
-            title = "我的主行业",
-            subtitle = if (position.industryCustomized) {
-                "手动分类优先于数据源，并用于首页行业聚合"
+            title = "我的行业标签",
+            subtitle = if (position.industryTagged) {
+                "用户标签优先于数据源，并用于首页行业聚合"
             } else {
                 "当前使用数据源自动分类"
             },
@@ -179,20 +179,20 @@ fun PositionDetailScreen(
                         modifier = Modifier.padding(top = 5.dp),
                     )
                 }
-                if (isSavingIndustry) {
+                if (isSavingTag) {
                     CircularProgressIndicator(Modifier.size(24.dp))
                 } else {
                     OutlinedButton(
-                        enabled = mainIndustries.isNotEmpty(),
-                        onClick = { showIndustryDialog = true },
+                        enabled = industryTags.isNotEmpty(),
+                        onClick = { showTagDialog = true },
                     ) {
-                        Text("修改")
+                        Text(if (industryTags.isEmpty()) "请先创建标签" else "修改")
                     }
                 }
             }
-            if (position.industryCustomized) {
+            if (position.industryTagged) {
                 TextButton(
-                    enabled = !isSavingIndustry,
+                    enabled = !isSavingTag,
                     onClick = {
                         onRestoreAutomaticIndustry(position.market, position.symbol)
                     },

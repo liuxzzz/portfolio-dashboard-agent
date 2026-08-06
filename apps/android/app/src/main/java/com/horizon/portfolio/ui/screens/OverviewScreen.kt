@@ -85,10 +85,8 @@ fun OverviewScreen(
             ) {
                 PortfolioHeroCard(
                     totalAsset = snapshot.totalAsset,
-                    dayProfit = snapshot.dayProfit,
                     dayProfitRate = snapshot.dayProfitRate,
-                    history = dashboard.history,
-                    sourceSyncedAt = snapshot.sourceSyncedAt,
+                    capturedAt = snapshot.capturedAt,
                     animationKey = snapshot.id,
                     playAnimation = playIntroAnimation,
                     amountsVisible = amountsVisible,

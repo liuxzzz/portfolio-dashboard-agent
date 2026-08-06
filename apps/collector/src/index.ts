@@ -41,15 +41,16 @@ async function main() {
     if (!filePath) {
       throw new Error("import-xlsx 命令需要提供同花顺导出的 .xlsx 文件路径");
     }
-    if (!config.apiUrl || !config.ingestSharedSecret) {
+    if (!config.apiUrl || !config.ingestSharedSecret || !config.portfolioUserPhone) {
       throw new Error(
-        "import-xlsx 需要同时配置 PORTFOLIO_API_URL 与 INGEST_SHARED_SECRET",
+        "import-xlsx 需要同时配置 PORTFOLIO_API_URL、INGEST_SHARED_SECRET 与 PORTFOLIO_USER_PHONE",
       );
     }
     const snapshot = await readPortfolioSnapshotFromXlsx(filePath);
     await publishSnapshot(snapshot, {
       apiUrl: config.apiUrl,
       ingestSharedSecret: config.ingestSharedSecret,
+      portfolioUserPhone: config.portfolioUserPhone,
     });
     console.log(
       JSON.stringify({
@@ -227,11 +228,13 @@ async function main() {
       if (
         config.apiConfigured &&
         config.apiUrl &&
-        config.ingestSharedSecret
+        config.ingestSharedSecret &&
+        config.portfolioUserPhone
       ) {
         await publishSnapshot(snapshot, {
           apiUrl: config.apiUrl,
           ingestSharedSecret: config.ingestSharedSecret,
+          portfolioUserPhone: config.portfolioUserPhone,
         });
       }
       console.log(

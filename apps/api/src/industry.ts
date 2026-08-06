@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type {
   IndustryAllocation,
   IndustryDataStatus,
-  MainIndustry,
+  IndustryTag,
   PortfolioSnapshot,
 } from "@portfolio/domain";
 import type { PortfolioRepository } from "./repository.js";
@@ -60,7 +60,7 @@ export interface IndustryProvider {
 export interface IndustryEnrichment {
   snapshot: PortfolioSnapshot;
   industries: IndustryAllocation[];
-  mainIndustries: MainIndustry[];
+  industryTags: IndustryTag[];
   industryData: IndustryDataStatus;
 }
 
@@ -103,7 +103,7 @@ function aggregateIndustries(
   snapshot: PortfolioSnapshot,
   membershipBySecurity: ReadonlyMap<string, IndustryMembership>,
   barByCode: ReadonlyMap<string, IndustryMarketBar>,
-  mainIndustryColors: ReadonlyMap<string, string>,
+  industryTagColors: ReadonlyMap<string, string>,
 ): IndustryAllocation[] {
   const totals = new Map<
     string,
@@ -113,25 +113,30 @@ function aggregateIndustries(
       value: number;
       dayRate: number | null;
       hasMarketBar: boolean;
+      tagColor: string | null;
     }
   >();
 
   for (const position of snapshot.positions) {
     const membership = membershipBySecurity.get(securityKey(position));
     const name = position.industry ?? "未分类";
-    const code = position.mainIndustryId
-      ? `USER:${position.mainIndustryId}`
+    const code = position.industryTagId
+      ? `USER:${position.industryTagId}`
       : membership?.level1Code ?? null;
     const bar = code ? barByCode.get(code) : undefined;
     const key = `name:${name}`;
-    const dayRate = position.industryCustomized
+    const dayRate = position.industryTagged
       ? null
       : bar?.pctChange === null || bar?.pctChange === undefined
         ? position.sectorRate ?? null
         : bar.pctChange / 100;
+    const tagColor = position.industryTagId
+      ? industryTagColors.get(position.industryTagId) ?? null
+      : null;
     const existing = totals.get(key);
     if (existing) {
       existing.value += position.marketValue;
+      existing.tagColor ??= tagColor;
       if (!existing.hasMarketBar && bar) {
         existing.code = code;
         existing.dayRate = dayRate;
@@ -147,6 +152,7 @@ function aggregateIndustries(
       value: position.marketValue,
       dayRate,
       hasMarketBar: bar !== undefined,
+      tagColor,
     });
   }
 
@@ -158,8 +164,7 @@ function aggregateIndustries(
       value: industry.value,
       weight: snapshot.totalAsset === 0 ? 0 : industry.value / snapshot.totalAsset,
       dayRate: industry.dayRate,
-      color:
-        mainIndustryColors.get(industry.name) ??
+      color: industry.tagColor ??
         industryColors[index % industryColors.length] ??
         "#8B98A9",
     }));
@@ -184,20 +189,22 @@ export class PortfolioIndustryService {
   ) {}
 
   async enrich(
+    userId: string,
     snapshot: PortfolioSnapshot,
     options: { force?: boolean } = {},
   ): Promise<IndustryEnrichment> {
     const securities = uniqueSecurityReferences(snapshot);
-    const [mainIndustries, overrides] = await Promise.all([
-      this.repository.getMainIndustries(),
-      this.repository.getIndustryOverrides(
+    const [industryTags, assignments] = await Promise.all([
+      this.repository.getIndustryTags(userId),
+      this.repository.getIndustryTagAssignments(
+        userId,
         snapshot.source,
         snapshot.sourceAccountId,
         securities,
       ),
     ]);
-    const overrideBySecurity = new Map(
-      overrides.map((override) => [securityKey(override), override]),
+    const assignmentBySecurity = new Map(
+      assignments.map((assignment) => [securityKey(assignment), assignment]),
     );
     const asOf = new Date(snapshot.capturedAt);
     const taxonomy = this.provider?.taxonomy ?? INDUSTRY_TAXONOMY;
@@ -264,17 +271,17 @@ export class PortfolioIndustryService {
       ...snapshot,
       positions: snapshot.positions.map((position) => {
         const membership = membershipBySecurity.get(securityKey(position));
-        const override = overrideBySecurity.get(securityKey(position));
+        const assignment = assignmentBySecurity.get(securityKey(position));
         const sourceIndustry = membership?.level1Name ?? position.industry;
         const bar = membership
           ? barByCode.get(membership.level1Code)
           : undefined;
         return {
           ...position,
-          industry: override?.mainIndustryName ?? sourceIndustry,
+          industry: assignment?.tagName ?? sourceIndustry,
           sourceIndustry,
-          mainIndustryId: override?.mainIndustryId ?? null,
-          industryCustomized: override !== undefined,
+          industryTagId: assignment?.tagId ?? null,
+          industryTagged: assignment !== undefined,
           relatedSector:
             membership?.level3Name ??
             membership?.level2Name ??
@@ -324,12 +331,12 @@ export class PortfolioIndustryService {
 
     return {
       snapshot: enrichedSnapshot,
-      mainIndustries,
+      industryTags,
       industries: aggregateIndustries(
         enrichedSnapshot,
         membershipBySecurity,
         barByCode,
-        new Map(mainIndustries.map((industry) => [industry.name, industry.color])),
+        new Map(industryTags.map((tag) => [tag.id, tag.color])),
       ),
       industryData,
     };

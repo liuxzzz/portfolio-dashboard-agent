@@ -40,7 +40,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -51,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.horizon.portfolio.R
 import com.horizon.portfolio.domain.model.IndustryAllocation
-import com.horizon.portfolio.domain.model.PortfolioHistoryPoint
 import com.horizon.portfolio.domain.model.PositionSnapshot
 import com.horizon.portfolio.ui.theme.Accent
 import com.horizon.portfolio.ui.theme.AccentSoft
@@ -66,14 +64,12 @@ import com.horizon.portfolio.ui.theme.Surface as SurfaceColor
 import com.horizon.portfolio.ui.theme.Warning
 import com.horizon.portfolio.ui.theme.WarningSoft
 import kotlinx.coroutines.delay
-import kotlin.math.floor
 import kotlin.math.min
 
 private val OverviewCardShape = RoundedCornerShape(24.dp)
 private val HeroStart = Color(0xFF152033)
 private val HeroEnd = Color(0xFF1E2C43)
 private val HeroMuted = Color(0xFF9EABC0)
-private val HeroGrid = Color.White.copy(alpha = 0.08f)
 private val Indigo = Color(0xFF7887ED)
 private val Gold = Color(0xFFF2B35C)
 
@@ -120,23 +116,14 @@ fun OverviewHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "PORTFOLIO  /  TODAY",
-                    color = Muted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.4.sp,
-                )
-                Text(
-                    text = "组合概览",
-                    color = Ink,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.6).sp,
-                    modifier = Modifier.padding(top = 7.dp),
-                )
-            }
+            Text(
+                text = "组合概览",
+                color = Ink,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.6).sp,
+                modifier = Modifier.weight(1f),
+            )
 
             IconButton(
                 onClick = onToggleAmountsVisibility,
@@ -244,15 +231,13 @@ fun OverviewMessageBanner(
 @Composable
 fun PortfolioHeroCard(
     totalAsset: Double,
-    dayProfit: Double?,
     dayProfitRate: Double?,
-    history: List<PortfolioHistoryPoint>,
-    sourceSyncedAt: String?,
+    capturedAt: String,
     animationKey: String,
     playAnimation: Boolean,
     amountsVisible: Boolean,
 ) {
-    val isPositive = (dayProfit ?: 0.0) >= 0.0
+    val isPositive = (dayProfitRate ?: 0.0) >= 0.0
     val profitColor = if (isPositive) MarketUpOnDark else MarketDownOnDark
 
     Box(
@@ -304,7 +289,6 @@ fun PortfolioHeroCard(
             Row(
                 modifier = Modifier.padding(top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box(
                     modifier = Modifier
@@ -321,7 +305,7 @@ fun PortfolioHeroCard(
                                 .graphicsLayer { rotationZ = if (isPositive) 0f else 90f },
                         )
                         Text(
-                            text = formatPercent(dayProfitRate, true),
+                            text = "今日涨幅 ${formatPercent(dayProfitRate, true)}",
                             color = profitColor,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
@@ -329,23 +313,10 @@ fun PortfolioHeroCard(
                         )
                     }
                 }
-                Text(
-                    text = "今日 ${formatCurrency(dayProfit, true, amountsVisible)}",
-                    color = HeroMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
             }
 
-            AnimatedPortfolioChart(
-                history = history,
-                animationKey = animationKey,
-                playAnimation = playAnimation,
-                modifier = Modifier.padding(top = 19.dp),
-            )
-
             Row(
-                modifier = Modifier.padding(top = 12.dp),
+                modifier = Modifier.padding(top = 18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
@@ -355,7 +326,7 @@ fun PortfolioHeroCard(
                     modifier = Modifier.size(14.dp),
                 )
                 Text(
-                    text = "源数据同步于 ${formatTime(sourceSyncedAt)}",
+                    text = "数据获取于 ${formatTime(capturedAt)}",
                     color = HeroMuted,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(start = 6.dp),
@@ -395,105 +366,6 @@ private fun AnimatedCurrencyText(
         letterSpacing = (-0.8).sp,
         modifier = modifier,
     )
-}
-
-@Composable
-private fun AnimatedPortfolioChart(
-    history: List<PortfolioHistoryPoint>,
-    animationKey: String,
-    playAnimation: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val values = history.map { it.totalAsset }
-    val chartColor = when {
-        values.size < 2 || values.last() == values.first() -> HeroMuted
-        values.last() > values.first() -> MarketUpOnDark
-        else -> MarketDownOnDark
-    }
-    val progress = remember(animationKey, playAnimation) {
-        Animatable(if (playAnimation) 0f else 1f)
-    }
-
-    LaunchedEffect(animationKey, values, playAnimation) {
-        if (playAnimation) {
-            progress.snapTo(0f)
-            progress.animateTo(1f, tween(1100, delayMillis = 280, easing = FastOutSlowInEasing))
-        } else {
-            progress.snapTo(1f)
-        }
-    }
-
-    Column(modifier) {
-        Canvas(Modifier.fillMaxWidth().height(116.dp)) {
-            if (values.size < 2) return@Canvas
-            val minValue = values.min()
-            val maxValue = values.max()
-            val range = (maxValue - minValue).takeIf { it > 0.0 } ?: 1.0
-            val topPadding = 10.dp.toPx()
-            val bottomPadding = 10.dp.toPx()
-            val chartHeight = size.height - topPadding - bottomPadding
-            val stepX = size.width / (values.size - 1)
-
-            repeat(3) { index ->
-                val y = topPadding + chartHeight * index / 2f
-                drawLine(HeroGrid, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
-            }
-
-            fun point(index: Int): Offset {
-                val normalized = ((values[index] - minValue) / range).toFloat()
-                return Offset(index * stepX, topPadding + chartHeight * (1f - normalized))
-            }
-
-            val rawPosition = progress.value * (values.lastIndex)
-            val completedIndex = floor(rawPosition).toInt().coerceIn(0, values.lastIndex)
-            val fraction = rawPosition - completedIndex
-            val visiblePoints = buildList {
-                for (index in 0..completedIndex) add(point(index))
-                if (completedIndex < values.lastIndex && fraction > 0f) {
-                    val from = point(completedIndex)
-                    val to = point(completedIndex + 1)
-                    add(
-                        Offset(
-                            x = from.x + (to.x - from.x) * fraction,
-                            y = from.y + (to.y - from.y) * fraction,
-                        ),
-                    )
-                }
-            }
-            if (visiblePoints.isEmpty()) return@Canvas
-
-            val area = Path().apply {
-                moveTo(visiblePoints.first().x, size.height)
-                lineTo(visiblePoints.first().x, visiblePoints.first().y)
-                visiblePoints.drop(1).forEach { lineTo(it.x, it.y) }
-                lineTo(visiblePoints.last().x, size.height)
-                close()
-            }
-            drawPath(
-                path = area,
-                brush = Brush.verticalGradient(
-                    colors = listOf(chartColor.copy(alpha = 0.24f), Color.Transparent),
-                    startY = topPadding,
-                    endY = size.height,
-                ),
-            )
-
-            val line = Path().apply {
-                moveTo(visiblePoints.first().x, visiblePoints.first().y)
-                visiblePoints.drop(1).forEach { lineTo(it.x, it.y) }
-            }
-            drawPath(line, chartColor, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
-            drawCircle(chartColor, 4.dp.toPx(), visiblePoints.last())
-            drawCircle(HeroStart, 2.dp.toPx(), visiblePoints.last())
-        }
-
-        if (history.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(history.first().date, color = HeroMuted, fontSize = 10.sp)
-                Text(history.last().date, color = HeroMuted, fontSize = 10.sp)
-            }
-        }
-    }
 }
 
 @Composable

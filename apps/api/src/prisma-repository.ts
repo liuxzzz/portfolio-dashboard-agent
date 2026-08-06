@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   agentRunSchema,
   portfolioSnapshotSchema,
@@ -12,9 +13,11 @@ import type {
 } from "./industry.js";
 import {
   snapshotContentHash,
-  type SaveIndustryOverrideInput,
+  IndustryTagNameConflictError,
+  type CreateIndustryTagInput,
+  type SaveIndustryTagAssignmentInput,
   type PortfolioRepository,
-  type SecurityIndustryOverride,
+  type SecurityIndustryTagAssignment,
   type SnapshotSaveResult,
 } from "./repository.js";
 
@@ -38,6 +41,14 @@ function evidenceId(
   return `${internalInsightId}:${index}:${referenceId}`;
 }
 
+function tenantEntityId(kind: string, userId: string, externalId: string) {
+  return createHash("sha256")
+    .update(`${kind}:${userId}:${externalId}`)
+    .digest("hex");
+}
+
+const LEGACY_USER_ID = "legacy-unassigned";
+
 function isUniqueConstraintError(error: unknown) {
   return (
     error instanceof Error &&
@@ -53,10 +64,16 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
     await this.prisma.$queryRaw`SELECT 1`;
   }
 
-  async saveSnapshot(snapshot: PortfolioSnapshot): Promise<SnapshotSaveResult> {
+  async saveSnapshot(
+    userId: string,
+    snapshot: PortfolioSnapshot,
+  ): Promise<SnapshotSaveResult> {
     const contentHash = snapshotContentHash(snapshot);
-    const existing = await this.prisma.snapshot.findUnique({
-      where: { id: snapshot.id },
+    const existing = await this.prisma.snapshot.findFirst({
+      where: {
+        externalId: snapshot.id,
+        account: { userId },
+      },
       select: { contentHash: true },
     });
     if (existing) {
@@ -68,29 +85,67 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
 
     try {
       await this.prisma.$transaction(async (transaction) => {
-        const account = await transaction.account.upsert({
+        let account = await transaction.account.findUnique({
           where: {
-            source_sourceAccountId: {
+            userId_source_sourceAccountId: {
+              userId,
               source: snapshot.source,
               sourceAccountId: snapshot.sourceAccountId,
             },
           },
-          create: {
-            source: snapshot.source,
-            sourceAccountId: snapshot.sourceAccountId,
-            name: snapshot.accountName,
-            currency: snapshot.currency,
-          },
-          update: {
-            name: snapshot.accountName,
-            currency: snapshot.currency,
-          },
           select: { id: true },
         });
+        if (!account) {
+          const legacy = await transaction.account.findUnique({
+            where: {
+              userId_source_sourceAccountId: {
+                userId: LEGACY_USER_ID,
+                source: snapshot.source,
+                sourceAccountId: snapshot.sourceAccountId,
+              },
+            },
+            select: { id: true },
+          });
+          account = legacy
+            ? await transaction.account.update({
+                where: { id: legacy.id },
+                data: {
+                  userId,
+                  name: snapshot.accountName,
+                  currency: snapshot.currency,
+                },
+                select: { id: true },
+              })
+            : await transaction.account.create({
+                data: {
+                  userId,
+                  source: snapshot.source,
+                  sourceAccountId: snapshot.sourceAccountId,
+                  name: snapshot.accountName,
+                  currency: snapshot.currency,
+                },
+                select: { id: true },
+              });
+        } else {
+          await transaction.account.update({
+            where: { id: account.id },
+            data: {
+              name: snapshot.accountName,
+              currency: snapshot.currency,
+            },
+          });
+        }
+
+        const internalSnapshotId = tenantEntityId(
+          "snapshot",
+          userId,
+          `${snapshot.source}:${snapshot.sourceAccountId}:${snapshot.id}`,
+        );
 
         await transaction.snapshot.create({
           data: {
-            id: snapshot.id,
+            id: internalSnapshotId,
+            externalId: snapshot.id,
             accountId: account.id,
             contentHash,
             capturedAt: new Date(snapshot.capturedAt),
@@ -108,7 +163,7 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
             positions: {
               create: snapshot.positions.map((position) => ({
                 id: positionId(
-                  snapshot.id,
+                  internalSnapshotId,
                   position.market,
                   position.symbol,
                 ),
@@ -151,15 +206,14 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
       if (!isUniqueConstraintError(error)) throw error;
       const duplicate = await this.prisma.snapshot.findFirst({
         where: {
+          account: {
+            userId,
+            source: snapshot.source,
+            sourceAccountId: snapshot.sourceAccountId,
+          },
           OR: [
-            { id: snapshot.id },
-            {
-              capturedAt: new Date(snapshot.capturedAt),
-              account: {
-                source: snapshot.source,
-                sourceAccountId: snapshot.sourceAccountId,
-              },
-            },
+            { externalId: snapshot.id },
+            { capturedAt: new Date(snapshot.capturedAt) },
           ],
         },
         select: { contentHash: true },
@@ -172,17 +226,29 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
     }
   }
 
-  async saveAgentRun(run: AgentRun) {
-    const existing = await this.prisma.agentRun.findUnique({
-      where: { id: run.id },
+  async saveAgentRun(userId: string, run: AgentRun) {
+    const snapshot = await this.prisma.snapshot.findFirst({
+      where: { externalId: run.snapshotId, account: { userId } },
+      select: { id: true },
+    });
+    if (!snapshot) throw new Error("快照不存在或不属于当前用户");
+    const existing = await this.prisma.agentRun.findFirst({
+      where: { externalId: run.id, snapshotId: snapshot.id },
       select: { id: true },
     });
     if (existing) return;
 
+    const internalRunId = tenantEntityId(
+      "agent-run",
+      userId,
+      `${snapshot.id}:${run.id}`,
+    );
+
     await this.prisma.agentRun.create({
       data: {
-        id: run.id,
-        snapshotId: run.snapshotId,
+        id: internalRunId,
+        externalId: run.id,
+        snapshotId: snapshot.id,
         status: run.status,
         requestedAt: new Date(run.requestedAt),
         completedAt: run.completedAt ? new Date(run.completedAt) : null,
@@ -190,7 +256,7 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
         disclaimer: run.disclaimer,
         insights: {
           create: run.insights.map((insight) => {
-            const internalInsightId = insightId(run.id, insight.id);
+            const internalInsightId = insightId(internalRunId, insight.id);
             return {
               id: internalInsightId,
               sourceInsightId: insight.id,
@@ -220,7 +286,7 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
     });
   }
 
-  async getLatestSnapshot(accountId?: string) {
+  async getLatestSnapshot(userId: string, accountId?: string) {
     const query = {
       orderBy: { capturedAt: "desc" as const },
       include: {
@@ -232,14 +298,17 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
       ? await this.prisma.snapshot.findFirst({
           ...query,
           where: {
-            account: { source: "tzzb", sourceAccountId: accountId },
+            account: { userId, source: "tzzb", sourceAccountId: accountId },
           },
         })
-      : await this.prisma.snapshot.findFirst(query);
+      : await this.prisma.snapshot.findFirst({
+          ...query,
+          where: { account: { userId } },
+        });
     if (!record) return null;
 
     return portfolioSnapshotSchema.parse({
-      id: record.id,
+      id: record.externalId,
       source: record.account.source,
       sourceAccountId: record.account.sourceAccountId,
       accountName: record.account.name,
@@ -287,11 +356,14 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
     });
   }
 
-  async getLatestAgentRun(snapshotId: string) {
+  async getLatestAgentRun(userId: string, snapshotId: string) {
     const record = await this.prisma.agentRun.findFirst({
-      where: { snapshotId },
+      where: {
+        snapshot: { externalId: snapshotId, account: { userId } },
+      },
       orderBy: { requestedAt: "desc" },
       include: {
+        snapshot: { select: { externalId: true } },
         insights: {
           orderBy: { createdAt: "asc" },
           include: { evidence: { orderBy: { id: "asc" } } },
@@ -301,8 +373,8 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
     if (!record) return null;
 
     return agentRunSchema.parse({
-      id: record.id,
-      snapshotId: record.snapshotId,
+      id: record.externalId,
+      snapshotId: record.snapshot.externalId,
       status: record.status,
       requestedAt: record.requestedAt.toISOString(),
       completedAt: record.completedAt?.toISOString() ?? null,
@@ -326,10 +398,10 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
     });
   }
 
-  async getHistory(accountId: string, limit: number) {
+  async getHistory(userId: string, accountId: string, limit: number) {
     const records = await this.prisma.snapshot.findMany({
       where: {
-        account: { source: "tzzb", sourceAccountId: accountId },
+        account: { userId, source: "tzzb", sourceAccountId: accountId },
       },
       orderBy: { capturedAt: "desc" },
       take: limit,
@@ -347,9 +419,9 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
     }));
   }
 
-  async getMainIndustries() {
-    return this.prisma.mainIndustry.findMany({
-      where: { isActive: true },
+  async getIndustryTags(userId: string) {
+    return this.prisma.industryTag.findMany({
+      where: { userId },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -360,52 +432,86 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
     });
   }
 
-  async getIndustryOverrides(
+  async createIndustryTag(userId: string, input: CreateIndustryTagInput) {
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        const aggregate = await transaction.industryTag.aggregate({
+          where: { userId },
+          _max: { sortOrder: true },
+        });
+        return transaction.industryTag.create({
+          data: {
+            userId,
+            name: input.name,
+            color: input.color,
+            sortOrder: (aggregate._max.sortOrder ?? -1) + 1,
+          },
+          select: { id: true, name: true, color: true, sortOrder: true },
+        });
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        throw new IndustryTagNameConflictError("标签名称已存在");
+      }
+      throw error;
+    }
+  }
+
+  async deleteIndustryTag(userId: string, tagId: string) {
+    const result = await this.prisma.industryTag.deleteMany({
+      where: { id: tagId, userId },
+    });
+    return result.count === 1;
+  }
+
+  async getIndustryTagAssignments(
+    userId: string,
     source: string,
     sourceAccountId: string,
     securities: readonly SecurityReference[],
   ) {
     if (securities.length === 0) return [];
-    const records = await this.prisma.securityIndustryOverride.findMany({
+    const records = await this.prisma.securityIndustryTagAssignment.findMany({
       where: {
-        account: { source, sourceAccountId },
+        account: { userId, source, sourceAccountId },
         OR: securities.map((security) => ({
           market: security.market,
           symbol: security.symbol,
         })),
       },
-      include: { account: true, mainIndustry: true },
+      include: { account: true, tag: true },
     });
-    return records.map((record): SecurityIndustryOverride => ({
+    return records.map((record): SecurityIndustryTagAssignment => ({
       source: record.account.source,
       sourceAccountId: record.account.sourceAccountId,
       market: record.market,
       symbol: record.symbol,
-      mainIndustryId: record.mainIndustryId,
-      mainIndustryName: record.mainIndustry.name,
-      color: record.mainIndustry.color,
+      tagId: record.tagId,
+      tagName: record.tag.name,
+      color: record.tag.color,
       updatedAt: record.updatedAt.toISOString(),
     }));
   }
 
-  async saveIndustryOverride(input: SaveIndustryOverrideInput) {
-    const [account, industry] = await Promise.all([
+  async saveIndustryTagAssignment(input: SaveIndustryTagAssignmentInput) {
+    const [account, tag] = await Promise.all([
       this.prisma.account.findUnique({
         where: {
-          source_sourceAccountId: {
+          userId_source_sourceAccountId: {
+            userId: input.userId,
             source: input.source,
             sourceAccountId: input.sourceAccountId,
           },
         },
       }),
-      this.prisma.mainIndustry.findFirst({
-        where: { id: input.mainIndustryId, isActive: true },
+      this.prisma.industryTag.findFirst({
+        where: { id: input.tagId, userId: input.userId },
       }),
     ]);
     if (!account) throw new Error("账户不存在");
-    if (!industry) throw new Error("主行业不存在或已停用");
+    if (!tag) throw new Error("行业标签不存在或不属于当前用户");
 
-    const record = await this.prisma.securityIndustryOverride.upsert({
+    const record = await this.prisma.securityIndustryTagAssignment.upsert({
       where: {
         accountId_market_symbol: {
           accountId: account.id,
@@ -417,28 +523,33 @@ export class PrismaPortfolioRepository implements PortfolioRepository {
         accountId: account.id,
         market: input.market,
         symbol: input.symbol,
-        mainIndustryId: input.mainIndustryId,
+        tagId: input.tagId,
       },
-      update: { mainIndustryId: input.mainIndustryId },
-      include: { mainIndustry: true },
+      update: { tagId: input.tagId },
+      include: { tag: true },
     });
     return {
-      ...input,
-      mainIndustryName: record.mainIndustry.name,
-      color: record.mainIndustry.color,
+      source: input.source,
+      sourceAccountId: input.sourceAccountId,
+      market: input.market,
+      symbol: input.symbol,
+      tagId: input.tagId,
+      tagName: record.tag.name,
+      color: record.tag.color,
       updatedAt: record.updatedAt.toISOString(),
     };
   }
 
-  async deleteIndustryOverride(
+  async deleteIndustryTagAssignment(
+    userId: string,
     source: string,
     sourceAccountId: string,
     market: string,
     symbol: string,
   ) {
-    await this.prisma.securityIndustryOverride.deleteMany({
+    await this.prisma.securityIndustryTagAssignment.deleteMany({
       where: {
-        account: { source, sourceAccountId },
+        account: { userId, source, sourceAccountId },
         market,
         symbol,
       },

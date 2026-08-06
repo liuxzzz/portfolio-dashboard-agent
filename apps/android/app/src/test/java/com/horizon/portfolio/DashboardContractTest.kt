@@ -16,9 +16,9 @@ class DashboardContractTest {
 
         assertEquals("snapshot-contract", payload.snapshot.id)
         assertEquals("600000", payload.snapshot.positions.single().symbol)
-        assertEquals("banking", payload.snapshot.positions.single().mainIndustryId)
+        assertEquals("tag-banking", payload.snapshot.positions.single().industryTagId)
         assertEquals("金融", payload.snapshot.positions.single().sourceIndustry)
-        assertEquals(6, payload.mainIndustries.size)
+        assertEquals(1, payload.industryTags.size)
         assertEquals("eastmoney", payload.industryData?.source)
         assertEquals("银行", payload.industries.single().name)
         assertNull(payload.industries.single().dayRate)
@@ -50,8 +50,8 @@ class DashboardContractTest {
                   "market": "SH",
                   "industry": "银行",
                   "sourceIndustry": "金融",
-                  "mainIndustryId": "banking",
-                  "industryCustomized": true,
+                  "industryTagId": "tag-banking",
+                  "industryTagged": true,
                   "quantity": 2000,
                   "currentPrice": 40,
                   "unitCost": 35,
@@ -64,15 +64,10 @@ class DashboardContractTest {
                   "holdingDays": 100
                 }]
               },
-              "mainIndustries": [
-                {"id":"semiconductor","name":"半导体","color":"#3E6FCA","sortOrder":0},
-                {"id":"internet","name":"互联网","color":"#5BC5A7","sortOrder":1},
-                {"id":"smart-driving","name":"智能驾驶","color":"#F3B45A","sortOrder":2},
-                {"id":"commercial-space","name":"商业航天","color":"#7C8BE8","sortOrder":3},
-                {"id":"healthcare","name":"医药","color":"#D96C8B","sortOrder":4},
-                {"id":"banking","name":"银行","color":"#8B98A9","sortOrder":5}
+              "industryTags": [
+                {"id":"tag-banking","name":"银行","color":"#8B98A9","sortOrder":0}
               ],
-              "industries": [{"name":"银行","code":"USER:banking","value":80000,"weight":0.8,"dayRate":null,"color":"#8B98A9"}],
+              "industries": [{"name":"银行","code":"USER:tag-banking","value":80000,"weight":0.8,"dayRate":null,"color":"#8B98A9"}],
               "industryData": {
                 "taxonomy": "EASTMONEY",
                 "source": "eastmoney",

@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@portfolio/domain": "workspace:*",
+    "@portfolio/xlsx-import": "workspace:*",
     "playwright": "1.62.1",
-    "read-excel-file": "9.2.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

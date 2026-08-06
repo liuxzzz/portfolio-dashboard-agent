@@ -1,6 +1,6 @@
 package com.horizon.portfolio.ui.components
 
-import android.app.Activity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -59,7 +58,7 @@ fun PortfolioSplashScreen(
 ) {
     val progress = remember { Animatable(0f) }
     val view = LocalView.current
-    val activity = LocalContext.current as? Activity
+    val activity = LocalActivity.current
 
     DisposableEffect(view, activity) {
         val controller = activity?.let { WindowCompat.getInsetsController(it.window, view) }

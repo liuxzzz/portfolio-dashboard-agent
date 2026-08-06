@@ -24,6 +24,7 @@ const envSchema = z.object({
   TZZB_CDP_URL: optionalUrl,
   PORTFOLIO_API_URL: optionalUrl,
   INGEST_SHARED_SECRET: optionalText,
+  PORTFOLIO_USER_PHONE: optionalText,
 });
 
 export function loadLocalEnv() {
@@ -38,14 +39,18 @@ export function loadLocalEnv() {
 export function loadCollectorConfig(env: NodeJS.ProcessEnv = process.env) {
   const parsed = envSchema.parse(env);
   const apiConfigured = Boolean(
-    parsed.PORTFOLIO_API_URL && parsed.INGEST_SHARED_SECRET,
+    parsed.PORTFOLIO_API_URL &&
+      parsed.INGEST_SHARED_SECRET &&
+      parsed.PORTFOLIO_USER_PHONE,
   );
-  if (
-    Boolean(parsed.PORTFOLIO_API_URL) !==
-    Boolean(parsed.INGEST_SHARED_SECRET)
-  ) {
+  const uploadConfigCount = [
+    parsed.PORTFOLIO_API_URL,
+    parsed.INGEST_SHARED_SECRET,
+    parsed.PORTFOLIO_USER_PHONE,
+  ].filter(Boolean).length;
+  if (uploadConfigCount !== 0 && uploadConfigCount !== 3) {
     throw new Error(
-      "PORTFOLIO_API_URL 与 INGEST_SHARED_SECRET 必须同时配置或同时留空",
+      "PORTFOLIO_API_URL、INGEST_SHARED_SECRET 与 PORTFOLIO_USER_PHONE 必须同时配置或同时留空",
     );
   }
 
@@ -67,5 +72,6 @@ export function loadCollectorConfig(env: NodeJS.ProcessEnv = process.env) {
     apiConfigured,
     apiUrl: parsed.PORTFOLIO_API_URL,
     ingestSharedSecret: parsed.INGEST_SHARED_SECRET,
+    portfolioUserPhone: parsed.PORTFOLIO_USER_PHONE,
   };
 }

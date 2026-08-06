@@ -8,6 +8,9 @@ import { PrismaPortfolioRepository } from "./prisma-repository.js";
 import { PortfolioIndustryService } from "./industry.js";
 import { EastmoneyIndustryProvider } from "./eastmoney-industry-provider.js";
 import { TushareIndustryProvider } from "./tushare-industry-provider.js";
+import { AliyunSmsSender } from "./aliyun-sms-sender.js";
+import { AuthService } from "./auth.js";
+import { PrismaAuthStore } from "./prisma-auth-store.js";
 
 const envCandidates = [
   path.resolve(process.cwd(), ".env"),
@@ -24,6 +27,23 @@ if (!databaseUrl) {
 }
 const prisma = createPrismaClient(databaseUrl);
 const repository = new PrismaPortfolioRepository(prisma);
+const requiredEnv = (name: string) => {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} 未配置，无法启动手机号登录`);
+  return value;
+};
+const authSecret = requiredEnv("AUTH_SECRET");
+const smsSender = new AliyunSmsSender({
+  accessKeyId: requiredEnv("ALIBABA_CLOUD_ACCESS_KEY_ID"),
+  accessKeySecret: requiredEnv("ALIBABA_CLOUD_ACCESS_KEY_SECRET"),
+  signName: requiredEnv("ALIYUN_PNVS_SIGN_NAME"),
+  templateCode: requiredEnv("ALIYUN_PNVS_TEMPLATE_CODE"),
+});
+const authService = new AuthService(
+  new PrismaAuthStore(prisma),
+  smsSender,
+  authSecret,
+);
 await repository.healthCheck();
 const industryProviderName = (
   process.env.INDUSTRY_PROVIDER ?? "eastmoney"
@@ -54,7 +74,7 @@ const industryService = new PortfolioIndustryService(
   repository,
   industryProvider,
 );
-const app = createApp({ repository, industryService });
+const app = createApp({ repository, industryService, authService });
 
 const server = serve({ fetch: app.fetch, hostname, port }, (info) => {
   console.log(`portfolio-api listening on http://${hostname}:${info.port}`);

@@ -8,6 +8,8 @@ import {
 } from "./industry.js";
 import { MemoryPortfolioRepository } from "./repository.js";
 
+const userId = "user-industry-test";
+
 const snapshot: PortfolioSnapshot = {
   id: "snapshot-industry-test",
   source: "tzzb",
@@ -45,7 +47,7 @@ const snapshot: PortfolioSnapshot = {
 
 test("enriches a portfolio from versioned SW membership and daily bars", async () => {
   const repository = new MemoryPortfolioRepository();
-  await repository.saveSnapshot(snapshot);
+  await repository.saveSnapshot(userId, snapshot);
   let membershipCalls = 0;
   let barCalls = 0;
   const provider: IndustryProvider = {
@@ -102,7 +104,7 @@ test("enriches a portfolio from versioned SW membership and daily bars", async (
     () => new Date("2026-08-05T09:00:00.000Z"),
   );
 
-  const first = await service.enrich(snapshot);
+  const first = await service.enrich(userId, snapshot);
   assert.equal(first.snapshot.positions[0]?.industry, "银行");
   assert.equal(first.snapshot.positions[0]?.relatedSector, "股份制银行Ⅲ");
   assert.equal(first.snapshot.positions[0]?.sectorRate, 0.0123);
@@ -112,43 +114,48 @@ test("enriches a portfolio from versioned SW membership and daily bars", async (
     value: 80_000,
     weight: 0.8,
     dayRate: 0.0123,
-    color: "#8B98A9",
+    color: "#172033",
   });
-  assert.deepEqual(
-    first.mainIndustries.map((industry) => industry.name),
-    ["半导体", "互联网", "智能驾驶", "商业航天", "医药", "银行"],
-  );
+  assert.deepEqual(first.industryTags, []);
   assert.equal(first.industryData.status, "fresh");
 
-  const second = await service.enrich(snapshot);
+  const second = await service.enrich(userId, snapshot);
   assert.equal(second.industryData.status, "fresh");
   assert.equal(membershipCalls, 1);
   assert.equal(barCalls, 1);
-  await repository.saveIndustryOverride({
+  const tag = await repository.createIndustryTag(userId, {
+    name: "半导体",
+    color: "#3E6FCA",
+  });
+  const unassigned = await service.enrich(userId, snapshot);
+  assert.equal(unassigned.industries[0]?.name, "银行");
+  assert.equal(unassigned.industries[0]?.color, "#172033");
+  await repository.saveIndustryTagAssignment({
+    userId,
     source: snapshot.source,
     sourceAccountId: snapshot.sourceAccountId,
     market: "SH",
     symbol: "600000",
-    mainIndustryId: "semiconductor",
+    tagId: tag.id,
   });
-  const customized = await service.enrich(snapshot);
+  const customized = await service.enrich(userId, snapshot);
   assert.deepEqual(customized.snapshot.positions[0], {
     ...first.snapshot.positions[0],
     industry: "半导体",
     sourceIndustry: "银行",
-    mainIndustryId: "semiconductor",
-    industryCustomized: true,
+    industryTagId: tag.id,
+    industryTagged: true,
   });
   assert.deepEqual(customized.industries[0], {
     name: "半导体",
-    code: "USER:semiconductor",
+    code: `USER:${tag.id}`,
     value: 80_000,
     weight: 0.8,
     dayRate: null,
     color: "#3E6FCA",
   });
   assert.equal(
-    (await repository.getLatestSnapshot())?.positions[0]?.industry,
+    (await repository.getLatestSnapshot(userId))?.positions[0]?.industry,
     null,
     "external enrichment must not mutate the immutable source snapshot",
   );
@@ -167,12 +174,15 @@ test("keeps the dashboard available when the provider fails", async () => {
     },
   };
   const service = new PortfolioIndustryService(repository, provider);
-  const result = await service.enrich(snapshot);
+  const result = await service.enrich(userId, snapshot);
 
   assert.equal(result.industryData.status, "unavailable");
   assert.equal(result.snapshot.positions[0]?.industry, null);
   assert.equal(result.industries[0]?.name, "未分类");
-  assert.equal((await service.enrich(snapshot)).industryData.status, "unavailable");
+  assert.equal(
+    (await service.enrich(userId, snapshot)).industryData.status,
+    "unavailable",
+  );
 });
 
 test("aggregates the same industry name across mainland and HK taxon codes", async () => {
@@ -234,7 +244,7 @@ test("aggregates the same industry name across mainland and HK taxon codes", asy
   };
   const service = new PortfolioIndustryService(repository, provider);
 
-  const result = await service.enrich(mixedSnapshot);
+  const result = await service.enrich(userId, mixedSnapshot);
 
   assert.deepEqual(result.industries, [
     {
@@ -243,7 +253,7 @@ test("aggregates the same industry name across mainland and HK taxon codes", asy
       value: 180_000,
       weight: 0.9,
       dayRate: 0.0572,
-      color: "#3E6FCA",
+      color: "#172033",
     },
   ]);
   assert.equal(result.snapshot.positions[1]?.sectorRate, null);

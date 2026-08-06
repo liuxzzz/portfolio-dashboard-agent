@@ -21,9 +21,12 @@
     "db:studio": "prisma studio --config prisma.config.ts"
   },
   "dependencies": {
+    "@alicloud/dypnsapi20170525": "2.0.0",
+    "@alicloud/openapi-core": "1.0.8",
     "@hono/node-server": "2.1.0",
     "@portfolio/agent-core": "workspace:*",
     "@portfolio/domain": "workspace:*",
+    "@portfolio/xlsx-import": "workspace:*",
     "@prisma/adapter-pg": "7.9.1",
     "@prisma/client": "7.9.1",
     "hono": "4.13.0",
