@@ -44,6 +44,32 @@ export interface IndustryMarketBar {
   fetchedAt: string;
 }
 
+export class PartialIndustryMembershipError extends Error {
+  override readonly name = "PartialIndustryMembershipError";
+
+  constructor(
+    readonly memberships: readonly IndustryMembership[],
+    readonly attemptedCount: number,
+    readonly failureCount: number,
+    options: { cause?: unknown } = {},
+  ) {
+    super("行业分类数据仅部分获取成功", options);
+  }
+}
+
+export class PartialIndustryMarketBarError extends Error {
+  override readonly name = "PartialIndustryMarketBarError";
+
+  constructor(
+    readonly bars: readonly IndustryMarketBar[],
+    readonly attemptedCount: number,
+    readonly failureCount: number,
+    options: { cause?: unknown } = {},
+  ) {
+    super("行业行情数据仅部分获取成功", options);
+  }
+}
+
 export interface IndustryProvider {
   readonly taxonomy: string;
   readonly source: string;
@@ -223,7 +249,22 @@ export class PortfolioIndustryService {
           const memberships = await this.provider.fetchMemberships(securities);
           await this.repository.saveIndustryMemberships(memberships);
           this.membershipFailures.delete(key);
-        } catch {
+        } catch (error) {
+          let savedCount = 0;
+          if (error instanceof PartialIndustryMembershipError) {
+            try {
+              await this.repository.saveIndustryMemberships(error.memberships);
+              savedCount = error.memberships.length;
+            } catch {
+              savedCount = 0;
+            }
+          }
+          this.warnRefreshFailure(
+            "industry_membership_refresh_failed",
+            error,
+            securities.length,
+            savedCount,
+          );
           this.membershipFailures.add(key);
         }
       }
@@ -254,7 +295,22 @@ export class PortfolioIndustryService {
           );
           await this.repository.saveIndustryBars(bars);
           this.barFailures.delete(key);
-        } catch {
+        } catch (error) {
+          let savedCount = 0;
+          if (error instanceof PartialIndustryMarketBarError) {
+            try {
+              await this.repository.saveIndustryBars(error.bars);
+              savedCount = error.bars.length;
+            } catch {
+              savedCount = 0;
+            }
+          }
+          this.warnRefreshFailure(
+            "industry_bar_refresh_failed",
+            error,
+            industryCodes.length,
+            savedCount,
+          );
           this.barFailures.add(key);
         }
       }
@@ -355,5 +411,29 @@ export class PortfolioIndustryService {
     }
     attempts.set(key, current);
     return true;
+  }
+
+  private warnRefreshFailure(
+    event: "industry_membership_refresh_failed" | "industry_bar_refresh_failed",
+    error: unknown,
+    attemptedCount: number,
+    savedCount: number,
+  ) {
+    const failureCount =
+      error instanceof PartialIndustryMembershipError ||
+      error instanceof PartialIndustryMarketBarError
+        ? error.failureCount
+        : attemptedCount;
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        event,
+        source: this.provider?.source ?? "disabled",
+        attemptedCount,
+        savedCount,
+        failureCount,
+        errorType: error instanceof Error ? error.name : "UnknownError",
+      }),
+    );
   }
 }

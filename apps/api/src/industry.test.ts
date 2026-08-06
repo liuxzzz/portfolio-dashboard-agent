@@ -3,6 +3,7 @@ import test from "node:test";
 import type { PortfolioSnapshot } from "@portfolio/domain";
 import {
   INDUSTRY_TAXONOMY,
+  PartialIndustryMembershipError,
   PortfolioIndustryService,
   type IndustryProvider,
 } from "./industry.js";
@@ -183,6 +184,72 @@ test("keeps the dashboard available when the provider fails", async () => {
     (await service.enrich(userId, snapshot)).industryData.status,
     "unavailable",
   );
+});
+
+test("persists successful memberships when part of a provider batch fails", async () => {
+  const repository = new MemoryPortfolioRepository();
+  const partialSnapshot: PortfolioSnapshot = {
+    ...snapshot,
+    id: "snapshot-partial-industry-test",
+    totalAsset: 120_000,
+    stockMarketValue: 100_000,
+    positions: [
+      snapshot.positions[0]!,
+      {
+        ...snapshot.positions[0]!,
+        symbol: "600001",
+        name: "虚构失败样本",
+        marketValue: 20_000,
+      },
+    ],
+  };
+  const successfulMembership = {
+    id: "membership-bank-partial",
+    taxonomy: INDUSTRY_TAXONOMY,
+    market: "SH",
+    symbol: "600000",
+    level1Code: "801780.SI",
+    level1Name: "银行",
+    level2Code: null,
+    level2Name: null,
+    level3Code: null,
+    level3Name: null,
+    effectiveFrom: null,
+    effectiveTo: null,
+    isCurrent: true,
+    source: "test:partial",
+    fetchedAt: "2026-08-05T09:00:00.000Z",
+  };
+  const provider: IndustryProvider = {
+    taxonomy: INDUSTRY_TAXONOMY,
+    source: "test",
+    async fetchMemberships() {
+      throw new PartialIndustryMembershipError(
+        [successfulMembership],
+        2,
+        1,
+      );
+    },
+    async fetchDailyBars() {
+      return [];
+    },
+  };
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = (message?: unknown) => warnings.push(String(message));
+  try {
+    const service = new PortfolioIndustryService(repository, provider);
+    const result = await service.enrich(userId, partialSnapshot);
+
+    assert.equal(result.industryData.status, "stale");
+    assert.equal(result.snapshot.positions[0]?.industry, "银行");
+    assert.equal(result.snapshot.positions[1]?.industry, null);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0] ?? "", /"savedCount":1/);
+    assert.doesNotMatch(warnings[0] ?? "", /600000|600001/);
+  } finally {
+    console.warn = originalWarn;
+  }
 });
 
 test("aggregates the same industry name across mainland and HK taxon codes", async () => {

@@ -6,6 +6,10 @@ import type {
   IndustryProvider,
   SecurityReference,
 } from "./industry.js";
+import {
+  PartialIndustryMarketBarError,
+  PartialIndustryMembershipError,
+} from "./industry.js";
 
 export const EASTMONEY_INDUSTRY_TAXONOMY = "EASTMONEY";
 export const EASTMONEY_INDUSTRY_SOURCE = "eastmoney";
@@ -31,16 +35,28 @@ const eastmoneySearchResponseSchema = z.object({
   }),
 });
 
+const eastmoneyCompanySurveyResponseSchema = z.object({
+  jbzl: z
+    .object({
+      sshy: z.unknown().optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
 type FetchImplementation = typeof globalThis.fetch;
 
 interface EastmoneyIndustryProviderOptions {
   searchApiUrl?: string;
   stockInfoApiUrl?: string;
+  companySurveyApiUrl?: string;
   historyApiUrl?: string;
   dataApiUrl?: string;
   fetchImplementation?: FetchImplementation;
   timeoutMs?: number;
   concurrency?: number;
+  retryAttempts?: number;
+  retryDelayMs?: number;
   now?: () => Date;
 }
 
@@ -178,12 +194,13 @@ function marketCode(reference: SecurityReference) {
   return reference.market === "SH" ? "1" : "0";
 }
 
-async function mapWithConcurrency<T, R>(
+async function mapWithConcurrencySettled<T, R>(
   entries: readonly T[],
   concurrency: number,
   worker: (entry: T) => Promise<R>,
 ) {
-  const results = new Array<R>(entries.length);
+  const results = new Array<R | undefined>(entries.length);
+  const failures: unknown[] = [];
   let cursor = 0;
   const runners = Array.from(
     { length: Math.min(Math.max(concurrency, 1), entries.length) },
@@ -192,12 +209,20 @@ async function mapWithConcurrency<T, R>(
         const index = cursor;
         cursor += 1;
         const entry = entries[index];
-        if (entry !== undefined) results[index] = await worker(entry);
+        if (entry === undefined) continue;
+        try {
+          results[index] = await worker(entry);
+        } catch (error) {
+          failures.push(error);
+        }
       }
     },
   );
   await Promise.all(runners);
-  return results;
+  return {
+    results: results.filter((result): result is R => result !== undefined),
+    failures,
+  };
 }
 
 export class EastmoneyIndustryProvider implements IndustryProvider {
@@ -205,11 +230,14 @@ export class EastmoneyIndustryProvider implements IndustryProvider {
   readonly source = EASTMONEY_INDUSTRY_SOURCE;
   private readonly searchApiUrl: string;
   private readonly stockInfoApiUrl: string;
+  private readonly companySurveyApiUrl: string;
   private readonly historyApiUrl: string;
   private readonly dataApiUrl: string;
   private readonly fetchImplementation: FetchImplementation;
   private readonly timeoutMs: number;
   private readonly concurrency: number;
+  private readonly retryAttempts: number;
+  private readonly retryDelayMs: number;
   private readonly now: () => Date;
   private readonly boardSearches = new Map<
     string,
@@ -223,6 +251,9 @@ export class EastmoneyIndustryProvider implements IndustryProvider {
     this.stockInfoApiUrl =
       options.stockInfoApiUrl ??
       "https://push2.eastmoney.com/api/qt/stock/get";
+    this.companySurveyApiUrl =
+      options.companySurveyApiUrl ??
+      "https://emweb.securities.eastmoney.com/PC_HSF10/CompanySurvey/CompanySurveyAjax";
     this.historyApiUrl =
       options.historyApiUrl ??
       "https://push2his.eastmoney.com/api/qt/stock/kline/get";
@@ -232,11 +263,13 @@ export class EastmoneyIndustryProvider implements IndustryProvider {
     this.fetchImplementation = options.fetchImplementation ?? globalThis.fetch;
     this.timeoutMs = options.timeoutMs ?? 8_000;
     this.concurrency = options.concurrency ?? 4;
+    this.retryAttempts = Math.max(1, options.retryAttempts ?? 2);
+    this.retryDelayMs = Math.max(0, options.retryDelayMs ?? 250);
     this.now = options.now ?? (() => new Date());
   }
 
   async fetchMemberships(securities: readonly SecurityReference[]) {
-    const memberships = await mapWithConcurrency(
+    const settled = await mapWithConcurrencySettled(
       securities,
       this.concurrency,
       async (security) => {
@@ -252,9 +285,18 @@ export class EastmoneyIndustryProvider implements IndustryProvider {
         return null;
       },
     );
-    return memberships.filter(
+    const memberships = settled.results.filter(
       (membership): membership is IndustryMembership => membership !== null,
     );
+    if (settled.failures.length > 0) {
+      throw new PartialIndustryMembershipError(
+        memberships,
+        securities.length,
+        settled.failures.length,
+        { cause: settled.failures[0] },
+      );
+    }
+    return memberships;
   }
 
   async fetchDailyBars(
@@ -263,7 +305,7 @@ export class EastmoneyIndustryProvider implements IndustryProvider {
     endDate: string,
   ) {
     const boardCodes = industryCodes.filter((code) => /^BK\d+$/.test(code));
-    const batches = await mapWithConcurrency(
+    const settled = await mapWithConcurrencySettled(
       boardCodes,
       this.concurrency,
       async (industryCode) => {
@@ -307,29 +349,67 @@ export class EastmoneyIndustryProvider implements IndustryProvider {
         );
       },
     );
-    return batches.flat();
+    const bars = settled.results.flat();
+    if (settled.failures.length > 0) {
+      throw new PartialIndustryMarketBarError(
+        bars,
+        boardCodes.length,
+        settled.failures.length,
+        { cause: settled.failures[0] },
+      );
+    }
+    return bars;
   }
 
   private async chinaMembership(security: SecurityReference) {
-    const payload = await this.getQuote(
-      this.stockInfoApiUrl,
-      {
-        fltt: "2",
-        invt: "2",
-        fields: "f57,f58,f127",
-        secid: `${marketCode(security)}.${security.symbol}`,
-      },
-      `股票资料 ${security.symbol}`,
-    );
-    const industryName = text(payload.data?.f127);
+    let industryName: string | null = null;
+    let source = "eastmoney:stock_info";
+    let primaryError: unknown;
+    try {
+      const payload = await this.getQuote(
+        this.stockInfoApiUrl,
+        {
+          fltt: "2",
+          invt: "2",
+          fields: "f57,f58,f127",
+          secid: `${marketCode(security)}.${security.symbol}`,
+        },
+        `股票资料 ${security.symbol}`,
+      );
+      industryName = text(payload.data?.f127);
+    } catch (error) {
+      primaryError = error;
+    }
+    if (!industryName) {
+      try {
+        industryName = await this.companySurveyIndustry(security);
+        source = "eastmoney:company_survey";
+      } catch (fallbackError) {
+        throw new Error(`东方财富股票行业 ${security.symbol}请求失败`, {
+          cause: primaryError ?? fallbackError,
+        });
+      }
+    }
     if (!industryName) return null;
     const board = await this.resolveIndustryBoard([industryName]);
     return this.membership({
       security,
       industryCode: board?.code ?? `EM:${stableHash(industryName).slice(0, 12)}`,
       industryName,
-      source: "eastmoney:stock_info",
+      source,
     });
+  }
+
+  private async companySurveyIndustry(security: SecurityReference) {
+    const response = await this.request(
+      this.companySurveyApiUrl,
+      { code: `${security.market}${security.symbol}` },
+      `公司资料 ${security.symbol}`,
+    );
+    const parsed = eastmoneyCompanySurveyResponseSchema.parse(
+      await response.json(),
+    );
+    return text(parsed.jbzl?.sshy);
   }
 
   private async hkMembership(security: SecurityReference) {
@@ -490,23 +570,43 @@ export class EastmoneyIndustryProvider implements IndustryProvider {
   ) {
     const url = new URL(endpoint);
     url.search = new URLSearchParams(params).toString();
-    let response: Response;
-    try {
-      response = await this.fetchImplementation(url, {
-        headers: {
-          Accept: "application/json",
-          Referer: "https://quote.eastmoney.com/",
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        },
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
-    } catch (error) {
-      throw new Error(`东方财富${label}请求失败：网络异常`, { cause: error });
-    }
-    if (!response.ok) {
+    for (let attempt = 1; attempt <= this.retryAttempts; attempt += 1) {
+      let response: Response;
+      try {
+        response = await this.fetchImplementation(url, {
+          headers: {
+            Accept: "application/json",
+            Referer: "https://quote.eastmoney.com/",
+            "User-Agent":
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+          },
+          signal: AbortSignal.timeout(this.timeoutMs),
+        });
+      } catch (error) {
+        if (attempt < this.retryAttempts) {
+          await this.waitBeforeRetry(attempt);
+          continue;
+        }
+        throw new Error(`东方财富${label}请求失败：网络异常`, { cause: error });
+      }
+      if (response.ok) return response;
+      if (
+        attempt < this.retryAttempts &&
+        (response.status === 429 || response.status >= 500)
+      ) {
+        await response.body?.cancel();
+        await this.waitBeforeRetry(attempt);
+        continue;
+      }
       throw new Error(`东方财富${label}请求失败：HTTP ${response.status}`);
     }
-    return response;
+    throw new Error(`东方财富${label}请求失败`);
+  }
+
+  private async waitBeforeRetry(attempt: number) {
+    if (this.retryDelayMs === 0) return;
+    await new Promise((resolve) =>
+      setTimeout(resolve, this.retryDelayMs * attempt),
+    );
   }
 }

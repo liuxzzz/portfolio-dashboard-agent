@@ -4,6 +4,7 @@ import {
   EASTMONEY_INDUSTRY_TAXONOMY,
   EastmoneyIndustryProvider,
 } from "./eastmoney-industry-provider.js";
+import { PartialIndustryMembershipError } from "./industry.js";
 
 test("normalizes A-share, HK and ETF industries from free Eastmoney data", async () => {
   const requests: URL[] = [];
@@ -153,19 +154,104 @@ test("normalizes A-share, HK and ETF industries from free Eastmoney data", async
   );
 });
 
-test("rejects a failed Eastmoney stock profile response", async () => {
+test("falls back to the company survey when the quote profile is unavailable", async () => {
   const fetchImplementation: typeof fetch = async (input) => {
     const url = new URL(String(input));
-    assert.ok(url.pathname.endsWith("/stock/get"));
-    return Response.json({ rc: 2, data: null });
+    if (url.pathname.endsWith("/stock/get")) {
+      return Response.json({ rc: 2, data: null });
+    }
+    if (url.pathname.endsWith("/CompanySurveyAjax")) {
+      assert.equal(url.searchParams.get("code"), "SH688521");
+      return Response.json({ jbzl: { sshy: "半导体" } });
+    }
+    assert.ok(url.pathname.endsWith("/suggest/get"));
+    return Response.json({
+      QuotationCodeTable: {
+        Data: [{ Code: "BK1036", Name: "半导体", MktNum: "90" }],
+      },
+    });
   };
-  const provider = new EastmoneyIndustryProvider({ fetchImplementation });
+  const provider = new EastmoneyIndustryProvider({
+    fetchImplementation,
+    retryAttempts: 1,
+  });
+
+  const memberships = await provider.fetchMemberships([
+    { market: "SH", symbol: "688521", name: "芯原股份" },
+  ]);
+
+  assert.equal(memberships[0]?.level1Name, "半导体");
+  assert.equal(memberships[0]?.level1Code, "BK1036");
+  assert.equal(memberships[0]?.source, "eastmoney:company_survey");
+});
+
+test("retries a transient network failure before using the primary result", async () => {
+  let stockAttempts = 0;
+  const fetchImplementation: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("/stock/get")) {
+      stockAttempts += 1;
+      if (stockAttempts === 1) throw new TypeError("socket closed");
+      return Response.json({
+        rc: 0,
+        data: { f57: "688521", f58: "芯原股份", f127: "半导体" },
+      });
+    }
+    assert.ok(url.pathname.endsWith("/suggest/get"));
+    return Response.json({ QuotationCodeTable: { Data: null } });
+  };
+  const provider = new EastmoneyIndustryProvider({
+    fetchImplementation,
+    retryAttempts: 2,
+    retryDelayMs: 0,
+  });
+
+  const memberships = await provider.fetchMemberships([
+    { market: "SH", symbol: "688521", name: "芯原股份" },
+  ]);
+
+  assert.equal(stockAttempts, 2);
+  assert.equal(memberships[0]?.level1Name, "半导体");
+  assert.equal(memberships[0]?.source, "eastmoney:stock_info");
+});
+
+test("returns successful memberships with a partial batch error", async () => {
+  const fetchImplementation: typeof fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("/stock/get")) {
+      if (url.searchParams.get("secid") === "1.688521") {
+        return Response.json({
+          rc: 0,
+          data: { f57: "688521", f58: "芯原股份", f127: "半导体" },
+        });
+      }
+      return Response.json({ rc: 2, data: null });
+    }
+    if (url.pathname.endsWith("/CompanySurveyAjax")) {
+      return new Response("temporarily unavailable", { status: 503 });
+    }
+    assert.ok(url.pathname.endsWith("/suggest/get"));
+    return Response.json({ QuotationCodeTable: { Data: null } });
+  };
+  const provider = new EastmoneyIndustryProvider({
+    fetchImplementation,
+    concurrency: 1,
+    retryAttempts: 1,
+  });
 
   await assert.rejects(
     provider.fetchMemberships([
       { market: "SH", symbol: "688521", name: "芯原股份" },
+      { market: "SH", symbol: "600000", name: "失败样本" },
     ]),
-    /股票资料 688521请求失败：rc 2/,
+    (error: unknown) => {
+      assert.ok(error instanceof PartialIndustryMembershipError);
+      assert.equal(error.attemptedCount, 2);
+      assert.equal(error.failureCount, 1);
+      assert.equal(error.memberships.length, 1);
+      assert.equal(error.memberships[0]?.symbol, "688521");
+      return true;
+    },
   );
 });
 
@@ -181,12 +267,22 @@ test("does not replace cached board mappings when Eastmoney search is down", asy
     assert.ok(url.pathname.endsWith("/suggest/get"));
     return new Response("temporarily unavailable", { status: 503 });
   };
-  const provider = new EastmoneyIndustryProvider({ fetchImplementation });
+  const provider = new EastmoneyIndustryProvider({
+    fetchImplementation,
+    retryAttempts: 1,
+  });
 
   await assert.rejects(
     provider.fetchMemberships([
       { market: "SH", symbol: "688521", name: "芯原股份" },
     ]),
-    /行业搜索 半导体请求失败：HTTP 503/,
+    (error: unknown) => {
+      assert.ok(error instanceof PartialIndustryMembershipError);
+      assert.match(
+        error.cause instanceof Error ? error.cause.message : "",
+        /行业搜索 半导体请求失败：HTTP 503/,
+      );
+      return true;
+    },
   );
 });
