@@ -1,0 +1,36 @@
+@import "tailwindcss";
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+:root {
+  --background: #f5f8fb; --foreground: #1f3045;
+  --card: #ffffff; --card-foreground: #263a50;
+  --primary: #315f87; --primary-foreground: #ffffff;
+  --secondary: #eaf2f9; --secondary-foreground: #365875;
+  --muted: #edf2f6; --muted-foreground: #708398;
+  --accent: #e6f0f8; --accent-foreground: #244c71;
+  --destructive: #c5534f; --destructive-foreground: #ffffff;
+  --border: #dfE8ef; --input: #d7e2eb; --ring: #7ba9cb;
+}
+@layer base {
+  * { box-sizing: border-box; border-color: var(--border); }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; min-width: 320px; background: var(--background); color: var(--foreground); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  button { cursor: pointer; }
+}

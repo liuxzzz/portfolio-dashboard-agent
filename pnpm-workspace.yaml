@@ -1,6 +1,7 @@
 packages:
   - "apps/api"
   - "apps/collector"
+  - "apps/web"
   - "packages/*"
 allowBuilds:
   '@alicloud/openapi-core': true

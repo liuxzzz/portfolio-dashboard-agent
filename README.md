@@ -1,11 +1,12 @@
 # Portfolio Dashboard Agent
 
-一个以“Android 原生体验 + 本地只读采集 + 标准化快照 + 证据优先分析”为核心的个人持仓产品。正式客户端使用 Kotlin 与 Jetpack Compose，Agent 编排和敏感凭证留在后端。
+一个以 Web 为主要入口、Android 为便捷客户端的个人持仓产品。两端共用 Portfolio API、账户、标准化快照和证据优先的 Agent 服务；敏感凭证与 Agent 编排留在后端。
 
 ## 已完成的基础能力
 
-- Android 原生客户端：概览、持仓列表、个股详情、Agent 观察四类 Compose 界面。
-- 移动数据层：HTTP API、ViewModel 单向状态流、Room 缓存和明确标注的演示回退。
+- Web 主入口：手机号登录、组合概览、全部持仓、个股详情、行业标签管理、XLSX 导入、Agent 观察、证据和原始 Run 检查。
+- Android 便捷客户端：概览、持仓列表、个股详情、Agent 观察和“我的” Compose 界面。
+- 移动数据层：HTTP API、ViewModel 单向状态流和按用户隔离的 Room 缓存；Web 在当前标签页缓存最近一次有效看板。
 - 统一数据契约：账户快照、持仓、行业分布、历史曲线、Agent 运行结果。
 - 证据优先 Agent：先用确定性规则检查数据新鲜度、集中度和现金缓冲。
 - 快照 API：鉴权接收快照，生成分析结果，并向客户端提供聚合看板。
@@ -13,15 +14,16 @@
 - 用户隔离：账户、快照、历史、行业自定义、Agent 结果与 Android 离线缓存均按用户隔离。
 - 行业标签：用户可在“我的”页面新增、选择颜色和删除私有标签，并在股票详情选择标签或恢复自动行业分类。
 - 数据库：PostgreSQL 保存不可变账户快照、完整持仓、Agent 运行与证据链。
-- 行业增强：后端通过 Tushare 接入申万 2021 行业分类与行业日线，版本化缓存后合并到看板，不改写原始快照。
+- 行业增强：后端默认从东方财富获取行业资料，也可配置 Tushare 申万 2021 数据；缓存后合并到看板，不改写原始快照。
 - 本地采集器：复用隔离浏览器登录会话，串联账户、持仓、当日成交、资金变化和行情接口。
-- 演示模式：未配置 API 时使用完全虚构数据，不阻塞界面开发和验收。
+- 演示样本只用于本地开发和验收；正式 Web 页面不会把样本数据当成账户持仓。
 
 真实接口适配与 27 列持仓标准化已经落入代码；首次使用仍需用户在本地浏览器完成一次登录验证。仓库不会提交 Cookie、券商密码、验证码或原始导出文件。
 
 ## 技术栈
 
 - Android：Kotlin 2.3、Jetpack Compose、Navigation、Room
+- Web：React + Vite + TypeScript + Tailwind CSS + shadcn/ui，按 FSD 分层并复用 `@portfolio/domain` 契约
 - 后端 Monorepo：pnpm + TypeScript
 - API：Hono + Zod + Prisma ORM
 - 数据库：PostgreSQL 18
@@ -35,6 +37,7 @@
 apps/
   android/      正式 Kotlin / Jetpack Compose Android 客户端
   client/       仅保留作迁移参考的旧 Expo 客户端，不参与构建
+  web/          Web 主入口；app/pages/widgets/features/entities/shared 分层
   api/          快照接收、聚合查询和 Agent 运行 API
   collector/    仅在用户设备运行的只读采集器
 packages/
@@ -52,6 +55,14 @@ docs/
 
 需要 Node.js 22+、pnpm 11.9.0 和 Docker Desktop。
 
+已完成 Android Studio、SDK 和 `.env` 配置后，可一键启动数据库、迁移、API、Android 模拟器并安装运行 Debug App：
+
+```bash
+pnpm dev:android
+```
+
+默认优先使用 `Pixel_10a`，也可通过 `PORTFOLIO_ANDROID_AVD=<模拟器名称> pnpm dev:android` 指定其他 AVD。再次执行会复用已经运行的 API 和模拟器。
+
 ```bash
 pnpm install
 cp .env.example .env
@@ -67,7 +78,20 @@ pnpm db:deploy
 pnpm --filter @portfolio/api dev
 ```
 
-本地 PostgreSQL 使用 `127.0.0.1:5433`，避免与电脑上常见的 5432 端口冲突。随后用 Android Studio 打开 `apps/android`，启动模拟器并运行 `app`。模拟器默认通过 `http://10.0.2.2:4000` 访问宿主机 API；没有快照或后端不可用时会明确显示虚构演示数据。
+本地 PostgreSQL 使用 `127.0.0.1:5433`，避免与电脑上常见的 5432 端口冲突。随后用 Android Studio 打开 `apps/android`，启动模拟器并运行 `app`。模拟器默认通过 `http://10.0.2.2:4000` 访问宿主机 API；没有快照时显示空态，后端不可用时可读取当前用户的本机缓存。
+
+### Web 主入口
+
+数据库迁移与 API 配置完成后，在两个终端分别运行：
+
+```bash
+pnpm dev
+pnpm dev:web
+```
+
+浏览器打开 `http://127.0.0.1:5173`。Web 开发服务器把 `/v1` 和 `/health` 代理到 `http://127.0.0.1:4000`；如 API 使用其他端口，可在 `apps/web/.env.local` 设置 `WEB_API_TARGET`（参考 `apps/web/.env.example`）。
+
+使用现有手机号验证码登录后，Web 可以浏览组合概览、行业分布、全部持仓和详情，管理私有行业标签、导入同花顺持仓 XLSX、触发 `POST /v1/agent/runs`，并查看观察证据与原始 Run。金额默认隐藏。会话和按用户隔离的最近一次有效看板仅保存在当前浏览器标签页的 `sessionStorage`；退出登录会清除本地缓存。Web 不接触采集器的 Cookie 或写入密钥。当前 Agent 服务仍是确定性规则分析，Web 不伪造模型或工具调用结果。正式部署 Web 时，需要在同一站点把 `/v1` 和 `/health` 反向代理到 Portfolio API，并使用 HTTPS。Web 架构及 AI 辅助开发规范见 [`AGENTS.md`](AGENTS.md)。
 
 完整的 Android Studio、JDK、SDK、模拟器和真机配置见 [`docs/android-development.md`](docs/android-development.md)。技术选型依据见 [`docs/mobile-platform-decision.md`](docs/mobile-platform-decision.md)。
 
